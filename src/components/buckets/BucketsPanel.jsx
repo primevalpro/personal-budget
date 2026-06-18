@@ -6,17 +6,25 @@ export default function BucketsPanel({ buckets, loading, onAdd, onUpdate, onDele
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   const [newTarget, setNewTarget] = useState('');
+  const [newMonthlyTarget, setNewMonthlyTarget] = useState('');
 
   const completed = buckets.filter(b => (b.currentAmount || 0) >= b.targetAmount).length;
   const totalSaved = buckets.reduce((sum, b) => sum + (b.currentAmount || 0), 0);
+
+  // Monthly targets summary — only shown when at least one bucket has a monthlyTarget
+  const bucketsWithMonthly = buckets.filter(b => (b.monthlyTarget || 0) > 0);
+  const totalMonthlyTarget = bucketsWithMonthly.reduce((sum, b) => sum + b.monthlyTarget, 0);
+  const totalMonthlyAssigned = bucketsWithMonthly.reduce((sum, b) => sum + (b.monthlyAssigned || 0), 0);
+  const monthlyMet = totalMonthlyAssigned >= totalMonthlyTarget;
 
   async function handleAdd() {
     const name = newName.trim();
     const targetAmount = Number(newTarget);
     if (!name || isNaN(targetAmount) || targetAmount < 0) return;
-    await onAdd(name, targetAmount);
+    await onAdd(name, targetAmount, Number(newMonthlyTarget) || 0);
     setNewName('');
     setNewTarget('');
+    setNewMonthlyTarget('');
     setShowAdd(false);
   }
 
@@ -29,6 +37,7 @@ export default function BucketsPanel({ buckets, loading, onAdd, onUpdate, onDele
     setShowAdd(false);
     setNewName('');
     setNewTarget('');
+    setNewMonthlyTarget('');
   }
 
   return (
@@ -52,6 +61,18 @@ export default function BucketsPanel({ buckets, loading, onAdd, onUpdate, onDele
             </div>
           )}
         </div>
+
+        {/* Monthly targets progress — only when at least one bucket has a monthlyTarget */}
+        {bucketsWithMonthly.length > 0 && (
+          <div className="mt-3 pt-3 border-t" style={{ borderColor: '#2a2d3e' }}>
+            <div className="flex items-center justify-between text-xs tabular-nums">
+              <span style={{ color: '#64748b' }}>Monthly targets:</span>
+              <span style={{ color: monthlyMet ? '#22c55e' : '#f59e0b' }}>
+                {monthlyMet ? '✓ ' : ''}{formatCurrency(totalMonthlyAssigned)} / {formatCurrency(totalMonthlyTarget)}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="border-t" style={{ borderColor: '#2a2d3e' }} />
@@ -97,12 +118,19 @@ export default function BucketsPanel({ buckets, loading, onAdd, onUpdate, onDele
             <input
               className="w-full bg-transparent border rounded-lg px-3 py-2 text-sm tabular-nums outline-none"
               style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="Target amount"
+              type="number" min="0" step="0.01"
+              placeholder="Savings goal (total target)"
               value={newTarget}
               onChange={e => setNewTarget(e.target.value)}
+              onKeyDown={addKeyDown}
+            />
+            <input
+              className="w-full bg-transparent border rounded-lg px-3 py-2 text-sm tabular-nums outline-none"
+              style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
+              type="number" min="0" step="0.01"
+              placeholder="Monthly target (optional)"
+              value={newMonthlyTarget}
+              onChange={e => setNewMonthlyTarget(e.target.value)}
               onKeyDown={addKeyDown}
             />
             <div className="flex gap-2">

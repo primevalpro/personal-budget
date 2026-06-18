@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { formatCurrency } from '../utils/dateUtils';
 
-export default function SummaryBar({ balance, totalAssigned, readyToAssign, onEditBalance, onAddIncome }) {
+export default function SummaryBar({
+  balance, totalAssigned, readyToAssign,
+  monthlyFundingGap, gapBreakdown,
+  onEditBalance, onAddIncome,
+}) {
   const [editing, setEditing] = useState(false);
   const [input, setInput] = useState('');
 
@@ -22,6 +26,7 @@ export default function SummaryBar({ balance, totalAssigned, readyToAssign, onEd
   }
 
   const rtaColor = readyToAssign < 0 ? '#ef4444' : '#22c55e';
+  const gapFunded = monthlyFundingGap <= 0;
 
   return (
     <div
@@ -79,6 +84,31 @@ export default function SummaryBar({ balance, totalAssigned, readyToAssign, onEd
           </span>
           {readyToAssign < 0 && (
             <span className="text-xs" style={{ color: '#ef4444' }}>Over-assigned</span>
+          )}
+        </div>
+
+        {/* Monthly Funding Gap */}
+        <div className="flex flex-col">
+          <span className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: '#64748b' }}>
+            Monthly Funding Gap
+          </span>
+          {gapFunded ? (
+            <span className="text-xl font-bold tabular-nums" style={{ color: '#22c55e' }}>
+              Fully funded ✓
+            </span>
+          ) : (
+            <span className="text-xl font-bold tabular-nums" style={{ color: '#f59e0b' }}>
+              {formatCurrency(monthlyFundingGap)} still needed
+            </span>
+          )}
+          {!gapFunded && gapBreakdown && (
+            <span className="text-xs tabular-nums mt-0.5" style={{ color: '#64748b' }}>
+              {gapBreakdown.obligations > 0 && `Obligations ${formatCurrency(gapBreakdown.obligations)}`}
+              {gapBreakdown.obligations > 0 && (gapBreakdown.goals > 0 || gapBreakdown.buckets > 0) && ' · '}
+              {gapBreakdown.goals > 0 && `Goals ${formatCurrency(gapBreakdown.goals)}`}
+              {gapBreakdown.goals > 0 && gapBreakdown.buckets > 0 && ' · '}
+              {gapBreakdown.buckets > 0 && `Buckets ${formatCurrency(gapBreakdown.buckets)}`}
+            </span>
           )}
         </div>
       </div>

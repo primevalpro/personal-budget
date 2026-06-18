@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
-  query, orderBy, serverTimestamp, increment, writeBatch,
+  query, orderBy, serverTimestamp, increment,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { currentMonth } from '../utils/dateUtils';
 
 export function useBuckets(uid) {
   const [buckets, setBuckets] = useState([]);
@@ -16,17 +17,29 @@ export function useBuckets(uid) {
       orderBy('createdAt', 'asc'),
     );
     const unsub = onSnapshot(q, snap => {
-      setBuckets(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const cm = currentMonth();
+      setBuckets(snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          // Lazily reset monthlyAssigned when month changes
+          monthlyAssigned: data.monthlyAssignedMonth === cm ? (data.monthlyAssigned || 0) : 0,
+        };
+      }));
       setLoading(false);
     });
     return unsub;
   }, [uid]);
 
-  async function addBucket(name, targetAmount) {
+  async function addBucket(name, targetAmount, monthlyTarget = 0) {
     await addDoc(collection(db, 'users', uid, 'buckets'), {
       name,
       targetAmount: Number(targetAmount),
       currentAmount: 0,
+      monthlyTarget: Number(monthlyTarget) || 0,
+      monthlyAssigned: 0,
+      monthlyAssignedMonth: '',
       createdAt: serverTimestamp(),
     });
   }
@@ -39,31 +52,23 @@ export function useBuckets(uid) {
     await deleteDoc(doc(db, 'users', uid, 'buckets', id));
   }
 
-  async function addFunds(id, amount) {
-    const batch = writeBatch(db);
-    batch.update(doc(db, 'users', uid, 'buckets', id), {
+  // No balance change — currentAmount increase is subtracted from RTA via the formula
+  async function addFunds(id, amount, currentMonthlyAssigned) {
+    await updateDoc(doc(db, 'users', uid, 'buckets', id), {
       currentAmount: increment(Number(amount)),
+      monthlyAssigned: (currentMonthlyAssigned || 0) + Number(amount),
+      monthlyAssignedMonth: currentMonth(),
     });
-    batch.set(
-      doc(db, 'users', uid, 'profile', 'budget'),
-      { balance: increment(-Number(amount)), updatedAt: serverTimestamp() },
-      { merge: true },
-    );
-    await batch.commit();
   }
 
-  async function withdraw(id, amount, currentAmount) {
+  // No balance change — currentAmount decrease is reflected in RTA via the formula
+  async function withdraw(id, amount, currentAmount, currentMonthlyAssigned) {
     const actual = Math.min(Number(amount), currentAmount);
-    const batch = writeBatch(db);
-    batch.update(doc(db, 'users', uid, 'buckets', id), {
+    await updateDoc(doc(db, 'users', uid, 'buckets', id), {
       currentAmount: currentAmount - actual,
+      monthlyAssigned: Math.max(0, (currentMonthlyAssigned || 0) - actual),
+      monthlyAssignedMonth: currentMonth(),
     });
-    batch.set(
-      doc(db, 'users', uid, 'profile', 'budget'),
-      { balance: increment(actual), updatedAt: serverTimestamp() },
-      { merge: true },
-    );
-    await batch.commit();
   }
 
   return { buckets, loading, addBucket, updateBucket, deleteBucket, addFunds, withdraw };

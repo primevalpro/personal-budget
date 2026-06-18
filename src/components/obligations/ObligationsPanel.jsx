@@ -11,7 +11,9 @@ export default function ObligationsPanel({ obligations, loading, onAdd, onUpdate
 
   const month = currentMonth();
   const totalCommitted = obligations.reduce((sum, o) => sum + (o.amount || 0), 0);
-  const assignedCount = obligations.filter(o => o.assignedMonth === month).length;
+  const fullCount = obligations.filter(o => o.assignedMonth === month && (o.assignedAmount || 0) >= o.amount && o.amount > 0).length;
+  const partialCount = obligations.filter(o => o.assignedMonth === month && (o.assignedAmount || 0) > 0 && (o.assignedAmount || 0) < o.amount).length;
+  const unassignedCount = obligations.length - fullCount - partialCount;
 
   async function handleAdd() {
     const name = newName.trim();
@@ -55,15 +57,19 @@ export default function ObligationsPanel({ obligations, loading, onAdd, onUpdate
             </p>
             <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>committed this month</p>
           </div>
-          <div className="text-right">
-            <p
-              className="text-lg font-semibold tabular-nums"
-              style={{ color: obligations.length > 0 && assignedCount === obligations.length ? '#22c55e' : '#64748b' }}
-            >
-              {assignedCount} / {obligations.length}
-            </p>
-            <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>assigned</p>
-          </div>
+          {obligations.length > 0 && (
+            <div className="text-right">
+              <p className="text-sm font-semibold tabular-nums" style={{ color: fullCount === obligations.length ? '#22c55e' : '#64748b' }}>
+                {fullCount} full
+              </p>
+              {partialCount > 0 && (
+                <p className="text-xs tabular-nums" style={{ color: '#f59e0b' }}>{partialCount} partial</p>
+              )}
+              {unassignedCount > 0 && (
+                <p className="text-xs tabular-nums" style={{ color: '#64748b' }}>{unassignedCount} unassigned</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

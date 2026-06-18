@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
-  query, orderBy, where, getDocs, writeBatch, serverTimestamp,
+  query, orderBy, getDocs, serverTimestamp, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { currentMonth } from '../utils/dateUtils';
@@ -18,15 +18,24 @@ export function useObligations(uid) {
       const month = currentMonth();
       const cleanupKey = `obCleanup_${uid}`;
 
-      // Run once per month: batch-delete all one-time obligations
-      // No balance refund needed — assigning never changes balance
+      // On first load of a new month: delete one-time obligations, reset assignedAmount for recurring
       if (localStorage.getItem(cleanupKey) !== month) {
         const oblRef = collection(db, 'users', uid, 'obligations');
-        const snap = await getDocs(query(oblRef, where('recurring', '==', false)));
+        const snap = await getDocs(query(oblRef));
 
         if (!snap.empty) {
           const batch = writeBatch(db);
-          snap.docs.forEach(d => batch.delete(doc(db, 'users', uid, 'obligations', d.id)));
+          snap.docs.forEach(d => {
+            const data = d.data();
+            if (data.recurring === false) {
+              batch.delete(doc(db, 'users', uid, 'obligations', d.id));
+            } else {
+              batch.update(doc(db, 'users', uid, 'obligations', d.id), {
+                assignedAmount: 0,
+                assignedMonth: '',
+              });
+            }
+          });
           await batch.commit();
         }
 
@@ -52,6 +61,7 @@ export function useObligations(uid) {
       name,
       amount: Number(amount),
       dueDay: Number(dueDay),
+      assignedAmount: 0,
       assignedMonth: '',
       paidMonth: '',
       recurring,
@@ -67,16 +77,28 @@ export function useObligations(uid) {
     await deleteDoc(doc(db, 'users', uid, 'obligations', id));
   }
 
-  async function assignObligation(id, amount, isAssigned) {
+  // Sets absolute assignedAmount; clears assignedMonth if amount is 0
+  async function assignObligation(id, newAmount) {
+    const val = Number(newAmount);
     await updateDoc(doc(db, 'users', uid, 'obligations', id), {
-      assignedMonth: isAssigned ? '' : currentMonth(),
+      assignedAmount: val,
+      assignedMonth: val > 0 ? currentMonth() : '',
     });
   }
 
-  async function togglePaid(id, isPaid) {
-    await updateDoc(doc(db, 'users', uid, 'obligations', id), {
-      paidMonth: isPaid ? '' : currentMonth(),
-    });
+  // Paid toggle auto-funds any shortfall without touching balance
+  async function togglePaid(id, isPaid, obligation) {
+    if (isPaid) {
+      await updateDoc(doc(db, 'users', uid, 'obligations', id), { paidMonth: '' });
+    } else {
+      const shortfall = (obligation.amount || 0) - (obligation.assignedAmount || 0);
+      const updates = { paidMonth: currentMonth() };
+      if (shortfall > 0) {
+        updates.assignedAmount = obligation.amount;
+        updates.assignedMonth = currentMonth();
+      }
+      await updateDoc(doc(db, 'users', uid, 'obligations', id), updates);
+    }
   }
 
   return { obligations, loading, addObligation, updateObligation, deleteObligation, assignObligation, togglePaid };

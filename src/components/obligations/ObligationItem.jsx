@@ -24,15 +24,46 @@ function TrashIcon() {
 export default function ObligationItem({ obligation, onUpdate, onDelete, onAssign, onTogglePaid }) {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [assignMode, setAssignMode] = useState(false);
+  const [assignInput, setAssignInput] = useState('');
   const [editName, setEditName] = useState(obligation.name);
   const [editAmount, setEditAmount] = useState(String(obligation.amount));
   const [editDueDay, setEditDueDay] = useState(String(obligation.dueDay));
   const [editRecurring, setEditRecurring] = useState(obligation.recurring !== false);
 
   const month = currentMonth();
-  const isAssigned = obligation.assignedMonth === month;
+  const assignedAmount = obligation.assignedAmount || 0;
+  const isFull = obligation.assignedMonth === month && assignedAmount >= obligation.amount && obligation.amount > 0;
+  const isPartial = obligation.assignedMonth === month && assignedAmount > 0 && assignedAmount < obligation.amount;
   const isPaid = obligation.paidMonth === month;
   const isOneTime = obligation.recurring === false;
+
+  // A button style: indigo=full, amber=partial, ghost=unassigned
+  const aStyle = isFull
+    ? { backgroundColor: '#6366f1', borderColor: '#6366f1', color: '#f1f5f9' }
+    : isPartial
+    ? { backgroundColor: '#f59e0b', borderColor: '#f59e0b', color: '#0f1117' }
+    : { backgroundColor: 'transparent', borderColor: '#2a2d3e', color: '#64748b' };
+
+  function openAssign() {
+    setAssignInput(isPartial ? String(assignedAmount) : String(obligation.amount));
+    setAssignMode(true);
+    setEditing(false);
+    setConfirmDelete(false);
+  }
+
+  async function submitAssign() {
+    const val = Number(assignInput);
+    if (isNaN(val) || val < 0) return;
+    await onAssign(obligation.id, val);
+    setAssignMode(false);
+    setAssignInput('');
+  }
+
+  function assignKeyDown(e) {
+    if (e.key === 'Enter') submitAssign();
+    if (e.key === 'Escape') { setAssignMode(false); setAssignInput(''); }
+  }
 
   function startEdit() {
     setEditName(obligation.name);
@@ -40,6 +71,7 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
     setEditDueDay(String(obligation.dueDay));
     setEditRecurring(obligation.recurring !== false);
     setEditing(true);
+    setAssignMode(false);
     setConfirmDelete(false);
   }
 
@@ -73,9 +105,7 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
           <input
             className="w-24 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums"
             style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
-            type="number"
-            min="0"
-            step="0.01"
+            type="number" min="0" step="0.01"
             value={editAmount}
             onChange={e => setEditAmount(e.target.value)}
             onKeyDown={editKeyDown}
@@ -84,49 +114,28 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
           <input
             className="w-16 bg-transparent border rounded-lg px-2 py-1.5 text-sm"
             style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
-            type="number"
-            min="1"
-            max="31"
+            type="number" min="1" max="31"
             value={editDueDay}
             onChange={e => setEditDueDay(e.target.value)}
             onKeyDown={editKeyDown}
             placeholder="Day"
           />
         </div>
-
-        {/* Recurring toggle in edit mode */}
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg overflow-hidden border flex-1" style={{ borderColor: '#2a2d3e' }}>
-            <button
-              type="button"
-              onClick={() => setEditRecurring(true)}
+            <button type="button" onClick={() => setEditRecurring(true)}
               className="flex-1 py-1 text-xs font-semibold transition-colors"
-              style={{
-                backgroundColor: editRecurring ? '#6366f1' : 'transparent',
-                color: editRecurring ? '#f1f5f9' : '#64748b',
-              }}
-            >
+              style={{ backgroundColor: editRecurring ? '#6366f1' : 'transparent', color: editRecurring ? '#f1f5f9' : '#64748b' }}>
               Recurring
             </button>
-            <button
-              type="button"
-              onClick={() => setEditRecurring(false)}
+            <button type="button" onClick={() => setEditRecurring(false)}
               className="flex-1 py-1 text-xs font-semibold transition-colors border-l"
-              style={{
-                borderColor: '#2a2d3e',
-                backgroundColor: !editRecurring ? '#6366f1' : 'transparent',
-                color: !editRecurring ? '#f1f5f9' : '#64748b',
-              }}
-            >
+              style={{ borderColor: '#2a2d3e', backgroundColor: !editRecurring ? '#6366f1' : 'transparent', color: !editRecurring ? '#f1f5f9' : '#64748b' }}>
               One-time
             </button>
           </div>
-          <button onClick={saveEdit} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>
-            Save
-          </button>
-          <button onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>
-            Cancel
-          </button>
+          <button onClick={saveEdit} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>Save</button>
+          <button onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
         </div>
       </div>
     );
@@ -139,80 +148,95 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
           Delete <span className="font-semibold">{obligation.name}</span>?
         </span>
         <div className="flex gap-2">
-          <button onClick={() => onDelete(obligation.id)} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#ef4444', color: '#f1f5f9' }}>
-            Delete
-          </button>
-          <button onClick={() => setConfirmDelete(false)} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>
-            Cancel
-          </button>
+          <button onClick={() => onDelete(obligation.id)} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#ef4444', color: '#f1f5f9' }}>Delete</button>
+          <button onClick={() => setConfirmDelete(false)} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`flex items-center gap-2 py-2 px-2 rounded-lg group transition-opacity ${isPaid ? 'opacity-40' : ''}`}>
-      {/* Assign toggle */}
-      <button
-        onClick={() => onAssign(obligation.id, obligation.amount, isAssigned)}
-        className="flex-shrink-0 px-1.5 py-0.5 rounded text-xs font-bold border-2 transition-colors"
-        style={{
-          backgroundColor: isAssigned ? '#6366f1' : 'transparent',
-          borderColor: isAssigned ? '#6366f1' : '#2a2d3e',
-          color: isAssigned ? '#f1f5f9' : '#64748b',
-        }}
-        title={isAssigned ? 'Unassign from budget' : 'Assign to budget'}
-      >
-        A
-      </button>
-
-      {/* Paid toggle */}
-      <button
-        onClick={() => onTogglePaid(obligation.id, isPaid)}
-        className="flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors"
-        style={{
-          borderColor: isPaid ? '#22c55e' : '#64748b',
-          backgroundColor: isPaid ? '#22c55e' : 'transparent',
-        }}
-        title={isPaid ? 'Mark unpaid' : 'Mark paid'}
-      >
-        {isPaid && (
-          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-            <path d="M2 6l3 3 5-5" stroke="#0f1117" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </button>
-
-      <span className="flex-1 text-sm font-medium truncate" style={{ color: '#f1f5f9' }}>
-        {obligation.name}
-      </span>
-
-      {/* One-time badge */}
-      {isOneTime && (
-        <span
-          className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide"
-          style={{ backgroundColor: '#f59e0b22', color: '#f59e0b' }}
+    <div className={`rounded-lg transition-opacity ${isPaid ? 'opacity-40' : ''}`}>
+      {/* Main row */}
+      <div className="flex items-center gap-2 py-2 px-2 group">
+        {/* A — assign button, three states */}
+        <button
+          onClick={assignMode ? () => { setAssignMode(false); setAssignInput(''); } : openAssign}
+          className="flex-shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center text-xs font-bold transition-colors"
+          style={aStyle}
+          title={isFull ? 'Fully assigned — click to adjust' : isPartial ? 'Partially assigned — click to adjust' : 'Assign funds'}
         >
-          one-time
+          A
+        </button>
+
+        {/* P — paid toggle */}
+        <button
+          onClick={() => onTogglePaid(obligation.id, isPaid, obligation)}
+          className="flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors"
+          style={{ borderColor: isPaid ? '#22c55e' : '#64748b', backgroundColor: isPaid ? '#22c55e' : 'transparent' }}
+          title={isPaid ? 'Mark unpaid' : 'Mark paid'}
+        >
+          {isPaid && (
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M2 6l3 3 5-5" stroke="#0f1117" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+
+        {/* Name + partial sub-label */}
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-medium" style={{ color: '#f1f5f9' }}>{obligation.name}</span>
+          {isPartial && (
+            <p className="text-xs tabular-nums" style={{ color: '#f59e0b' }}>
+              Assigned {formatCurrency(assignedAmount)} of {formatCurrency(obligation.amount)}
+            </p>
+          )}
+        </div>
+
+        {isOneTime && (
+          <span className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide" style={{ backgroundColor: '#f59e0b22', color: '#f59e0b' }}>
+            one-time
+          </span>
+        )}
+
+        <span className="text-sm font-semibold tabular-nums flex-shrink-0" style={{ color: '#f1f5f9' }}>
+          {formatCurrency(obligation.amount)}
         </span>
-      )}
 
-      <span className="text-sm font-semibold tabular-nums flex-shrink-0" style={{ color: '#f1f5f9' }}>
-        {formatCurrency(obligation.amount)}
-      </span>
+        <span className="text-xs w-12 text-right flex-shrink-0" style={{ color: '#64748b' }}>
+          {ordinalSuffix(obligation.dueDay)}
+        </span>
 
-      <span className="text-xs w-12 text-right flex-shrink-0" style={{ color: '#64748b' }}>
-        {ordinalSuffix(obligation.dueDay)}
-      </span>
-
-      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-        <button onClick={startEdit} className="p-1 rounded hover:opacity-70" style={{ color: '#64748b' }} title="Edit">
-          <PencilIcon />
-        </button>
-        <button onClick={() => setConfirmDelete(true)} className="p-1 rounded hover:opacity-70" style={{ color: '#ef4444' }} title="Delete">
-          <TrashIcon />
-        </button>
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          <button onClick={startEdit} className="p-1 rounded hover:opacity-70" style={{ color: '#64748b' }} title="Edit"><PencilIcon /></button>
+          <button onClick={() => setConfirmDelete(true)} className="p-1 rounded hover:opacity-70" style={{ color: '#ef4444' }} title="Delete"><TrashIcon /></button>
+        </div>
       </div>
+
+      {/* Assign input — appears below the row when A is clicked */}
+      {assignMode && (
+        <div className="flex gap-2 pb-2 px-2">
+          <input
+            className="flex-1 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums outline-none"
+            style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
+            type="number"
+            min="0"
+            max={obligation.amount}
+            step="0.01"
+            placeholder={formatCurrency(obligation.amount)}
+            value={assignInput}
+            onChange={e => setAssignInput(e.target.value)}
+            onKeyDown={assignKeyDown}
+            autoFocus
+          />
+          <button onClick={submitAssign} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>
+            Assign
+          </button>
+          <button onClick={() => { setAssignMode(false); setAssignInput(''); }} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }
