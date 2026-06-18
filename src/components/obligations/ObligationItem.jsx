@@ -27,15 +27,18 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
   const [editName, setEditName] = useState(obligation.name);
   const [editAmount, setEditAmount] = useState(String(obligation.amount));
   const [editDueDay, setEditDueDay] = useState(String(obligation.dueDay));
+  const [editRecurring, setEditRecurring] = useState(obligation.recurring !== false);
 
   const month = currentMonth();
   const isAssigned = obligation.assignedMonth === month;
   const isPaid = obligation.paidMonth === month;
+  const isOneTime = obligation.recurring === false;
 
   function startEdit() {
     setEditName(obligation.name);
     setEditAmount(String(obligation.amount));
     setEditDueDay(String(obligation.dueDay));
+    setEditRecurring(obligation.recurring !== false);
     setEditing(true);
     setConfirmDelete(false);
   }
@@ -45,7 +48,7 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
     const amount = Number(editAmount);
     const dueDay = Number(editDueDay);
     if (!name || isNaN(amount) || amount < 0 || isNaN(dueDay) || dueDay < 1 || dueDay > 31) return;
-    await onUpdate(obligation.id, { name, amount, dueDay });
+    await onUpdate(obligation.id, { name, amount, dueDay, recurring: editRecurring });
     setEditing(false);
   }
 
@@ -56,44 +59,75 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
 
   if (editing) {
     return (
-      <div className="flex items-center gap-2 py-2 px-2 rounded-lg" style={{ backgroundColor: '#0f1117' }}>
-        <input
-          className="flex-1 min-w-0 bg-transparent border rounded-lg px-2 py-1.5 text-sm"
-          style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
-          value={editName}
-          onChange={e => setEditName(e.target.value)}
-          onKeyDown={editKeyDown}
-          placeholder="Name"
-          autoFocus
-        />
-        <input
-          className="w-24 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums"
-          style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
-          type="number"
-          min="0"
-          step="0.01"
-          value={editAmount}
-          onChange={e => setEditAmount(e.target.value)}
-          onKeyDown={editKeyDown}
-          placeholder="Amount"
-        />
-        <input
-          className="w-16 bg-transparent border rounded-lg px-2 py-1.5 text-sm"
-          style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
-          type="number"
-          min="1"
-          max="31"
-          value={editDueDay}
-          onChange={e => setEditDueDay(e.target.value)}
-          onKeyDown={editKeyDown}
-          placeholder="Day"
-        />
-        <button onClick={saveEdit} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>
-          Save
-        </button>
-        <button onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>
-          Cancel
-        </button>
+      <div className="flex flex-col gap-2 py-2 px-2 rounded-lg" style={{ backgroundColor: '#0f1117' }}>
+        <div className="flex items-center gap-2">
+          <input
+            className="flex-1 min-w-0 bg-transparent border rounded-lg px-2 py-1.5 text-sm"
+            style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
+            value={editName}
+            onChange={e => setEditName(e.target.value)}
+            onKeyDown={editKeyDown}
+            placeholder="Name"
+            autoFocus
+          />
+          <input
+            className="w-24 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums"
+            style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
+            type="number"
+            min="0"
+            step="0.01"
+            value={editAmount}
+            onChange={e => setEditAmount(e.target.value)}
+            onKeyDown={editKeyDown}
+            placeholder="Amount"
+          />
+          <input
+            className="w-16 bg-transparent border rounded-lg px-2 py-1.5 text-sm"
+            style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
+            type="number"
+            min="1"
+            max="31"
+            value={editDueDay}
+            onChange={e => setEditDueDay(e.target.value)}
+            onKeyDown={editKeyDown}
+            placeholder="Day"
+          />
+        </div>
+
+        {/* Recurring toggle in edit mode */}
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg overflow-hidden border flex-1" style={{ borderColor: '#2a2d3e' }}>
+            <button
+              type="button"
+              onClick={() => setEditRecurring(true)}
+              className="flex-1 py-1 text-xs font-semibold transition-colors"
+              style={{
+                backgroundColor: editRecurring ? '#6366f1' : 'transparent',
+                color: editRecurring ? '#f1f5f9' : '#64748b',
+              }}
+            >
+              Recurring
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditRecurring(false)}
+              className="flex-1 py-1 text-xs font-semibold transition-colors border-l"
+              style={{
+                borderColor: '#2a2d3e',
+                backgroundColor: !editRecurring ? '#6366f1' : 'transparent',
+                color: !editRecurring ? '#f1f5f9' : '#64748b',
+              }}
+            >
+              One-time
+            </button>
+          </div>
+          <button onClick={saveEdit} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>
+            Save
+          </button>
+          <button onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>
+            Cancel
+          </button>
+        </div>
       </div>
     );
   }
@@ -152,6 +186,16 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
       <span className="flex-1 text-sm font-medium truncate" style={{ color: '#f1f5f9' }}>
         {obligation.name}
       </span>
+
+      {/* One-time badge */}
+      {isOneTime && (
+        <span
+          className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide"
+          style={{ backgroundColor: '#f59e0b22', color: '#f59e0b' }}
+        >
+          one-time
+        </span>
+      )}
 
       <span className="text-sm font-semibold tabular-nums flex-shrink-0" style={{ color: '#f1f5f9' }}>
         {formatCurrency(obligation.amount)}

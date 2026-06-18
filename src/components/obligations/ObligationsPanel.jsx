@@ -7,6 +7,7 @@ export default function ObligationsPanel({ obligations, loading, onAdd, onUpdate
   const [newName, setNewName] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [newDueDay, setNewDueDay] = useState('');
+  const [newRecurring, setNewRecurring] = useState(true);
 
   const month = currentMonth();
   const totalCommitted = obligations.reduce((sum, o) => sum + (o.amount || 0), 0);
@@ -17,10 +18,11 @@ export default function ObligationsPanel({ obligations, loading, onAdd, onUpdate
     const amount = Number(newAmount);
     const dueDay = Number(newDueDay);
     if (!name || isNaN(amount) || amount < 0 || isNaN(dueDay) || dueDay < 1 || dueDay > 31) return;
-    await onAdd(name, amount, dueDay);
+    await onAdd(name, amount, dueDay, newRecurring);
     setNewName('');
     setNewAmount('');
     setNewDueDay('');
+    setNewRecurring(true);
     setShowAdd(false);
   }
 
@@ -34,6 +36,7 @@ export default function ObligationsPanel({ obligations, loading, onAdd, onUpdate
     setNewName('');
     setNewAmount('');
     setNewDueDay('');
+    setNewRecurring(true);
   }
 
   return (
@@ -126,11 +129,47 @@ export default function ObligationsPanel({ obligations, loading, onAdd, onUpdate
                 onKeyDown={addKeyDown}
               />
             </div>
+
+            {/* Recurring / One-time toggle */}
+            <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: '#2a2d3e' }}>
+              <button
+                type="button"
+                onClick={() => setNewRecurring(true)}
+                className="flex-1 py-1.5 text-xs font-semibold transition-colors"
+                style={{
+                  backgroundColor: newRecurring ? '#6366f1' : 'transparent',
+                  color: newRecurring ? '#f1f5f9' : '#64748b',
+                }}
+              >
+                Recurring
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewRecurring(false)}
+                className="flex-1 py-1.5 text-xs font-semibold transition-colors border-l"
+                style={{
+                  borderColor: '#2a2d3e',
+                  backgroundColor: !newRecurring ? '#6366f1' : 'transparent',
+                  color: !newRecurring ? '#f1f5f9' : '#64748b',
+                }}
+              >
+                One-time
+              </button>
+            </div>
+
             <div className="flex gap-2">
-              <button onClick={handleAdd} className="flex-1 py-2 rounded-lg text-sm font-medium transition-opacity hover:opacity-90" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>
+              <button
+                onClick={handleAdd}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-opacity hover:opacity-90"
+                style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
+              >
                 Add
               </button>
-              <button onClick={cancelAdd} className="px-4 py-2 rounded-lg text-sm border transition-opacity hover:opacity-80" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>
+              <button
+                onClick={cancelAdd}
+                className="px-4 py-2 rounded-lg text-sm border transition-opacity hover:opacity-80"
+                style={{ borderColor: '#2a2d3e', color: '#64748b' }}
+              >
                 Cancel
               </button>
             </div>
