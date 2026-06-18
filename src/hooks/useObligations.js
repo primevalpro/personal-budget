@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
-  query, orderBy, where, getDocs, serverTimestamp, writeBatch, increment,
+  query, orderBy, where, getDocs, writeBatch, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { currentMonth, prevMonth } from '../utils/dateUtils';
+import { currentMonth } from '../utils/dateUtils';
 
 export function useObligations(uid) {
   const [obligations, setObligations] = useState([]);
@@ -16,26 +16,17 @@ export function useObligations(uid) {
 
     async function cleanupAndSubscribe() {
       const month = currentMonth();
-      const prev = prevMonth();
       const cleanupKey = `obCleanup_${uid}`;
 
-      // Run once per month: delete one-time obligations, refund if they were assigned
+      // Run once per month: batch-delete all one-time obligations
+      // No balance refund needed — assigning never changes balance
       if (localStorage.getItem(cleanupKey) !== month) {
         const oblRef = collection(db, 'users', uid, 'obligations');
         const snap = await getDocs(query(oblRef, where('recurring', '==', false)));
 
         if (!snap.empty) {
           const batch = writeBatch(db);
-          const budgetRef = doc(db, 'users', uid, 'profile', 'budget');
-          let refund = 0;
-          snap.docs.forEach(d => {
-            const data = d.data();
-            if (data.assignedMonth === prev) refund += data.amount || 0;
-            batch.delete(doc(db, 'users', uid, 'obligations', d.id));
-          });
-          if (refund > 0) {
-            batch.set(budgetRef, { balance: increment(refund) }, { merge: true });
-          }
+          snap.docs.forEach(d => batch.delete(doc(db, 'users', uid, 'obligations', d.id)));
           await batch.commit();
         }
 
@@ -77,17 +68,9 @@ export function useObligations(uid) {
   }
 
   async function assignObligation(id, amount, isAssigned) {
-    const batch = writeBatch(db);
-    batch.update(doc(db, 'users', uid, 'obligations', id), {
+    await updateDoc(doc(db, 'users', uid, 'obligations', id), {
       assignedMonth: isAssigned ? '' : currentMonth(),
     });
-    const delta = isAssigned ? Number(amount) : -Number(amount);
-    batch.set(
-      doc(db, 'users', uid, 'profile', 'budget'),
-      { balance: increment(delta), updatedAt: serverTimestamp() },
-      { merge: true },
-    );
-    await batch.commit();
   }
 
   async function togglePaid(id, isPaid) {

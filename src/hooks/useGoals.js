@@ -71,18 +71,10 @@ export function useGoals(uid) {
     await deleteDoc(doc(db, 'users', uid, 'goals', id));
   }
 
-  async function assignGoal(id, currentAssigned, newAssigned) {
-    const diff = Number(newAssigned) - Number(currentAssigned);
-    const batch = writeBatch(db);
-    batch.update(doc(db, 'users', uid, 'goals', id), {
+  async function assignGoal(id, _currentAssigned, newAssigned) {
+    await updateDoc(doc(db, 'users', uid, 'goals', id), {
       assignedAmount: Number(newAssigned),
     });
-    batch.set(
-      doc(db, 'users', uid, 'profile', 'budget'),
-      { balance: increment(-diff), updatedAt: serverTimestamp() },
-      { merge: true },
-    );
-    await batch.commit();
   }
 
   async function addSpend(id, amount) {
