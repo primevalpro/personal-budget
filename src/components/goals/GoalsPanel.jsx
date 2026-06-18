@@ -1,23 +1,20 @@
 import { useState } from 'react';
-import { useGoals } from '../../hooks/useGoals';
 import GoalItem from './GoalItem';
 import { currentMonth, monthLabel, formatCurrency } from '../../utils/dateUtils';
 
-export default function GoalsPanel({ uid }) {
-  const { goals, loading, addGoal, updateGoal, deleteGoal, addSpend } = useGoals(uid);
-
+export default function GoalsPanel({ goals, loading, onAdd, onUpdate, onDelete, onAssign, onAddSpend }) {
   const [showAdd, setShowAdd] = useState(false);
   const [newCategory, setNewCategory] = useState('');
   const [newTarget, setNewTarget] = useState('');
 
+  const totalAssigned = goals.reduce((sum, g) => sum + (g.assignedAmount || 0), 0);
   const totalSpent = goals.reduce((sum, g) => sum + (g.spentAmount || 0), 0);
-  const totalBudgeted = goals.reduce((sum, g) => sum + (g.targetAmount || 0), 0);
 
   async function handleAdd() {
     const category = newCategory.trim();
     const targetAmount = Number(newTarget);
     if (!category || isNaN(targetAmount) || targetAmount < 0) return;
-    await addGoal(category, targetAmount);
+    await onAdd(category, targetAmount);
     setNewCategory('');
     setNewTarget('');
     setShowAdd(false);
@@ -39,28 +36,29 @@ export default function GoalsPanel({ uid }) {
       className="rounded-xl border flex flex-col md:min-h-0"
       style={{ backgroundColor: '#1a1d27', borderColor: '#2a2d3e' }}
     >
-      {/* Stats header */}
       <div className="px-5 pt-5 pb-4">
         <div className="flex items-center justify-between mb-4">
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>
-            Goals
-          </p>
-          <p className="text-xs" style={{ color: '#64748b' }}>
-            {monthLabel(currentMonth())}
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>Goals</p>
+          <p className="text-xs" style={{ color: '#64748b' }}>{monthLabel(currentMonth())}</p>
         </div>
-        <p className="text-2xl font-bold tabular-nums" style={{ color: '#f1f5f9' }}>
-          {formatCurrency(totalSpent)}
-          <span className="text-base font-normal ml-1" style={{ color: '#64748b' }}>
-            / {formatCurrency(totalBudgeted)}
-          </span>
-        </p>
-        <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>budgeted spent</p>
+        <div className="flex justify-between items-end">
+          <div>
+            <p className="text-2xl font-bold tabular-nums" style={{ color: '#f1f5f9' }}>
+              {formatCurrency(totalAssigned)}
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>assigned</p>
+          </div>
+          <div className="text-right">
+            <p className="text-lg font-semibold tabular-nums" style={{ color: '#64748b' }}>
+              {formatCurrency(totalSpent)}
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>spent</p>
+          </div>
+        </div>
       </div>
 
       <div className="border-t" style={{ borderColor: '#2a2d3e' }} />
 
-      {/* Goal list */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {loading ? (
           <p className="text-sm py-6 text-center" style={{ color: '#64748b' }}>Loading…</p>
@@ -74,20 +72,18 @@ export default function GoalsPanel({ uid }) {
               <div key={g.id}>
                 <GoalItem
                   goal={g}
-                  onUpdate={updateGoal}
-                  onDelete={deleteGoal}
-                  onAddSpend={addSpend}
+                  onUpdate={onUpdate}
+                  onDelete={onDelete}
+                  onAssign={onAssign}
+                  onAddSpend={onAddSpend}
                 />
-                {i < goals.length - 1 && (
-                  <div className="border-t" style={{ borderColor: '#2a2d3e' }} />
-                )}
+                {i < goals.length - 1 && <div className="border-t" style={{ borderColor: '#2a2d3e' }} />}
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Add form */}
       {showAdd && (
         <>
           <div className="border-t" style={{ borderColor: '#2a2d3e' }} />
@@ -113,26 +109,13 @@ export default function GoalsPanel({ uid }) {
               onKeyDown={addKeyDown}
             />
             <div className="flex gap-2">
-              <button
-                onClick={handleAdd}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-opacity hover:opacity-90"
-                style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
-              >
-                Add
-              </button>
-              <button
-                onClick={cancelAdd}
-                className="px-4 py-2 rounded-lg text-sm border transition-opacity hover:opacity-80"
-                style={{ borderColor: '#2a2d3e', color: '#64748b' }}
-              >
-                Cancel
-              </button>
+              <button onClick={handleAdd} className="flex-1 py-2 rounded-lg text-sm font-medium transition-opacity hover:opacity-90" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>Add</button>
+              <button onClick={cancelAdd} className="px-4 py-2 rounded-lg text-sm border transition-opacity hover:opacity-80" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
             </div>
           </div>
         </>
       )}
 
-      {/* Footer add button */}
       {!showAdd && (
         <>
           <div className="border-t" style={{ borderColor: '#2a2d3e' }} />

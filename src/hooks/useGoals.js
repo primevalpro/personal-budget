@@ -18,11 +18,9 @@ export function useGoals(uid) {
       const month = currentMonth();
       const colRef = collection(db, 'users', uid, 'goals');
 
-      // Check if this month already has goals
       const currentSnap = await getDocs(query(colRef, where('month', '==', month)));
 
       if (currentSnap.empty) {
-        // Try to carry over from previous month
         const prevSnap = await getDocs(query(colRef, where('month', '==', prevMonth())));
         if (!prevSnap.empty) {
           const batch = writeBatch(db);
@@ -31,6 +29,7 @@ export function useGoals(uid) {
             batch.set(doc(colRef), {
               category: data.category,
               targetAmount: data.targetAmount,
+              assignedAmount: 0,
               spentAmount: 0,
               month,
               createdAt: serverTimestamp(),
@@ -40,7 +39,6 @@ export function useGoals(uid) {
         }
       }
 
-      // Real-time listener for this month's goals
       unsub = onSnapshot(
         query(colRef, where('month', '==', month)),
         snap => {
@@ -58,6 +56,7 @@ export function useGoals(uid) {
     await addDoc(collection(db, 'users', uid, 'goals'), {
       category,
       targetAmount: Number(targetAmount),
+      assignedAmount: 0,
       spentAmount: 0,
       month: currentMonth(),
       createdAt: serverTimestamp(),
@@ -72,11 +71,25 @@ export function useGoals(uid) {
     await deleteDoc(doc(db, 'users', uid, 'goals', id));
   }
 
+  async function assignGoal(id, currentAssigned, newAssigned) {
+    const diff = Number(newAssigned) - Number(currentAssigned);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'users', uid, 'goals', id), {
+      assignedAmount: Number(newAssigned),
+    });
+    batch.set(
+      doc(db, 'users', uid, 'profile', 'budget'),
+      { balance: increment(-diff), updatedAt: serverTimestamp() },
+      { merge: true },
+    );
+    await batch.commit();
+  }
+
   async function addSpend(id, amount) {
     await updateDoc(doc(db, 'users', uid, 'goals', id), {
       spentAmount: increment(Number(amount)),
     });
   }
 
-  return { goals, loading, addGoal, updateGoal, deleteGoal, addSpend };
+  return { goals, loading, addGoal, updateGoal, deleteGoal, assignGoal, addSpend };
 }
