@@ -24,8 +24,8 @@ function TrashIcon() {
 export default function ObligationItem({ obligation, onUpdate, onDelete, onAssign, onTogglePaid }) {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [assignMode, setAssignMode] = useState(false);
-  const [assignInput, setAssignInput] = useState('');
+  const [adjustMode, setAdjustMode] = useState(false);
+  const [adjustInput, setAdjustInput] = useState('');
   const [editName, setEditName] = useState(obligation.name);
   const [editAmount, setEditAmount] = useState(String(obligation.amount));
   const [editDueDay, setEditDueDay] = useState(String(obligation.dueDay));
@@ -38,31 +38,48 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
   const isPaid = obligation.paidMonth === month;
   const isOneTime = obligation.recurring === false;
 
-  // A button style: indigo=full, amber=partial, ghost=unassigned
   const aStyle = isFull
     ? { backgroundColor: '#6366f1', borderColor: '#6366f1', color: '#f1f5f9' }
     : isPartial
     ? { backgroundColor: '#f59e0b', borderColor: '#f59e0b', color: '#0f1117' }
     : { backgroundColor: 'transparent', borderColor: '#2a2d3e', color: '#64748b' };
 
-  function openAssign() {
-    setAssignInput(isPartial ? String(assignedAmount) : String(obligation.amount));
-    setAssignMode(true);
+  async function handleToggleAssign() {
+    if (obligation.amount > 0 && assignedAmount >= obligation.amount) {
+      await onAssign(obligation.id, 0);
+    } else {
+      await onAssign(obligation.id, obligation.amount);
+    }
+  }
+
+  function openAdjust() {
+    setAdjustInput(String(assignedAmount));
+    setAdjustMode(true);
     setEditing(false);
     setConfirmDelete(false);
   }
 
-  async function submitAssign() {
-    const val = Number(assignInput);
-    if (isNaN(val) || val < 0) return;
-    await onAssign(obligation.id, val);
-    setAssignMode(false);
-    setAssignInput('');
+  function closeAdjust() {
+    setAdjustMode(false);
+    setAdjustInput('');
   }
 
-  function assignKeyDown(e) {
-    if (e.key === 'Enter') submitAssign();
-    if (e.key === 'Escape') { setAssignMode(false); setAssignInput(''); }
+  async function submitAdjustAdd() {
+    const val = Number(adjustInput);
+    if (isNaN(val) || val <= 0) return;
+    await onAssign(obligation.id, assignedAmount + val);
+    closeAdjust();
+  }
+
+  async function submitAdjustSub() {
+    const val = Number(adjustInput);
+    if (isNaN(val) || val <= 0) return;
+    await onAssign(obligation.id, Math.max(0, assignedAmount - val));
+    closeAdjust();
+  }
+
+  function adjustKeyDown(e) {
+    if (e.key === 'Escape') closeAdjust();
   }
 
   function startEdit() {
@@ -71,7 +88,7 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
     setEditDueDay(String(obligation.dueDay));
     setEditRecurring(obligation.recurring !== false);
     setEditing(true);
-    setAssignMode(false);
+    setAdjustMode(false);
     setConfirmDelete(false);
   }
 
@@ -157,16 +174,25 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
 
   return (
     <div className={`rounded-lg transition-opacity ${isPaid ? 'opacity-40' : ''}`}>
-      {/* Main row */}
       <div className="flex items-center gap-2 py-2 px-2 group">
-        {/* A — assign button, three states */}
+        {/* A — full/zero toggle */}
         <button
-          onClick={assignMode ? () => { setAssignMode(false); setAssignInput(''); } : openAssign}
+          onClick={handleToggleAssign}
           className="flex-shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center text-xs font-bold transition-colors"
           style={aStyle}
-          title={isFull ? 'Fully assigned — click to adjust' : isPartial ? 'Partially assigned — click to adjust' : 'Assign funds'}
+          title={isFull ? 'Fully assigned — click to unassign' : 'Click to assign full amount'}
         >
           A
+        </button>
+
+        {/* Pencil — open inline +/− adjuster */}
+        <button
+          onClick={adjustMode ? closeAdjust : openAdjust}
+          className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors"
+          style={{ color: adjustMode ? '#6366f1' : '#475569' }}
+          title="Adjust assigned amount"
+        >
+          <PencilIcon />
         </button>
 
         {/* P — paid toggle */}
@@ -183,7 +209,6 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
           )}
         </button>
 
-        {/* Name + partial sub-label */}
         <div className="flex-1 min-w-0">
           <span className="text-sm font-medium" style={{ color: '#f1f5f9' }}>{obligation.name}</span>
           {isPartial && (
@@ -213,26 +238,42 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
         </div>
       </div>
 
-      {/* Assign input — appears below the row when A is clicked */}
-      {assignMode && (
+      {/* Inline +/− adjuster */}
+      {adjustMode && (
         <div className="flex gap-2 pb-2 px-2">
           <input
             className="flex-1 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums outline-none"
             style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
             type="number"
             min="0"
-            max={obligation.amount}
             step="0.01"
-            placeholder={formatCurrency(obligation.amount)}
-            value={assignInput}
-            onChange={e => setAssignInput(e.target.value)}
-            onKeyDown={assignKeyDown}
+            placeholder="Amount"
+            value={adjustInput}
+            onChange={e => setAdjustInput(e.target.value)}
+            onKeyDown={adjustKeyDown}
             autoFocus
           />
-          <button onClick={submitAssign} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>
-            Assign
+          <button
+            onClick={submitAdjustAdd}
+            className="px-3 py-1.5 rounded-lg text-sm font-bold"
+            style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
+            title="Add to assigned amount"
+          >
+            +
           </button>
-          <button onClick={() => { setAssignMode(false); setAssignInput(''); }} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>
+          <button
+            onClick={submitAdjustSub}
+            className="px-3 py-1.5 rounded-lg text-sm font-bold"
+            style={{ backgroundColor: '#374151', color: '#f1f5f9' }}
+            title="Subtract from assigned amount"
+          >
+            −
+          </button>
+          <button
+            onClick={closeAdjust}
+            className="px-3 py-1.5 rounded-lg text-sm border"
+            style={{ borderColor: '#2a2d3e', color: '#64748b' }}
+          >
             Cancel
           </button>
         </div>
