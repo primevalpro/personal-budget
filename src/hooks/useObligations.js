@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
-  query, orderBy, getDocs, serverTimestamp, writeBatch,
+  query, orderBy, getDocs, getDoc, setDoc, serverTimestamp, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { currentMonth } from '../utils/dateUtils';
@@ -16,10 +16,12 @@ export function useObligations(uid) {
 
     async function cleanupAndSubscribe() {
       const month = currentMonth();
-      const cleanupKey = `obCleanup_${uid}`;
+      const profileRef = doc(db, 'users', uid, 'profile', 'budget');
+      const profileSnap = await getDoc(profileRef);
+      const lastCleanupMonth = profileSnap.data()?.lastObCleanupMonth ?? '';
 
       // On first load of a new month: delete one-time obligations, reset assignedAmount for recurring
-      if (localStorage.getItem(cleanupKey) !== month) {
+      if (lastCleanupMonth !== month) {
         const oblRef = collection(db, 'users', uid, 'obligations');
         const snap = await getDocs(query(oblRef));
 
@@ -39,7 +41,7 @@ export function useObligations(uid) {
           await batch.commit();
         }
 
-        localStorage.setItem(cleanupKey, month);
+        await setDoc(profileRef, { lastObCleanupMonth: month }, { merge: true });
       }
 
       const q = query(
