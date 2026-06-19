@@ -29,6 +29,7 @@ export function useGoals(uid) {
             batch.set(doc(colRef), {
               category: data.category,
               targetAmount: data.targetAmount,
+              subcategoryId: data.subcategoryId || '',
               assignedAmount: 0,
               spentAmount: 0,
               month,
@@ -52,10 +53,11 @@ export function useGoals(uid) {
     return () => unsub?.();
   }, [uid]);
 
-  async function addGoal(category, targetAmount) {
+  async function addGoal(category, targetAmount, subcategoryId = '') {
     await addDoc(collection(db, 'users', uid, 'goals'), {
       category,
       targetAmount: Number(targetAmount),
+      subcategoryId,
       assignedAmount: 0,
       spentAmount: 0,
       month: currentMonth(),

@@ -32,7 +32,7 @@ export function useBuckets(uid) {
     return unsub;
   }, [uid]);
 
-  async function addBucket(name, targetAmount, monthlyTarget = 0) {
+  async function addBucket(name, targetAmount, monthlyTarget = 0, subcategoryId = '') {
     await addDoc(collection(db, 'users', uid, 'buckets'), {
       name,
       targetAmount: Number(targetAmount),
@@ -40,6 +40,7 @@ export function useBuckets(uid) {
       monthlyTarget: Number(monthlyTarget) || 0,
       monthlyAssigned: 0,
       monthlyAssignedMonth: '',
+      subcategoryId,
       createdAt: serverTimestamp(),
     });
   }

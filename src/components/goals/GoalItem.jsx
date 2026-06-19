@@ -27,12 +27,13 @@ function TrashIcon() {
   );
 }
 
-export default function GoalItem({ goal, onUpdate, onDelete, onAssign, onAddSpend }) {
+export default function GoalItem({ goal, onUpdate, onDelete, onAssign, onAddSpend, subcategories }) {
   const [mode, setMode] = useState(null); // null | 'assign' | 'spend' | 'edit' | 'delete'
   const [assignInput, setAssignInput] = useState('');
   const [spendInput, setSpendInput] = useState('');
   const [editCategory, setEditCategory] = useState(goal.category);
   const [editTarget, setEditTarget] = useState(String(goal.targetAmount));
+  const [editSubcategoryId, setEditSubcategoryId] = useState(goal.subcategoryId || '');
 
   const assigned = goal.assignedAmount || 0;
   const spent = goal.spentAmount || 0;
@@ -64,7 +65,7 @@ export default function GoalItem({ goal, onUpdate, onDelete, onAssign, onAddSpen
     const category = editCategory.trim();
     const targetAmount = Number(editTarget);
     if (!category || isNaN(targetAmount) || targetAmount < 0) return;
-    await onUpdate(goal.id, { category, targetAmount });
+    await onUpdate(goal.id, { category, targetAmount, subcategoryId: editSubcategoryId });
     setMode(null);
   }
 
@@ -85,29 +86,46 @@ export default function GoalItem({ goal, onUpdate, onDelete, onAssign, onAddSpen
 
   if (mode === 'edit') {
     return (
-      <div className="flex items-center gap-2 py-3 px-2 rounded-lg" style={{ backgroundColor: '#0f1117' }}>
-        <input
-          className="flex-1 min-w-0 bg-transparent border rounded-lg px-2 py-1.5 text-sm"
-          style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
-          value={editCategory}
-          onChange={e => setEditCategory(e.target.value)}
-          onKeyDown={editKeyDown}
-          placeholder="Category"
-          autoFocus
-        />
-        <input
-          className="w-28 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums"
-          style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
-          type="number"
-          min="0"
-          step="0.01"
-          value={editTarget}
-          onChange={e => setEditTarget(e.target.value)}
-          onKeyDown={editKeyDown}
-          placeholder="Budget"
-        />
-        <button onClick={saveEdit} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>Save</button>
-        <button onClick={() => setMode(null)} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
+      <div className="flex flex-col gap-2 py-3 px-2 rounded-lg" style={{ backgroundColor: '#0f1117' }}>
+        <div className="flex items-center gap-2">
+          <input
+            className="flex-1 min-w-0 bg-transparent border rounded-lg px-2 py-1.5 text-sm"
+            style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
+            value={editCategory}
+            onChange={e => setEditCategory(e.target.value)}
+            onKeyDown={editKeyDown}
+            placeholder="Category"
+            autoFocus
+          />
+          <input
+            className="w-28 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums"
+            style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
+            type="number"
+            min="0"
+            step="0.01"
+            value={editTarget}
+            onChange={e => setEditTarget(e.target.value)}
+            onKeyDown={editKeyDown}
+            placeholder="Budget"
+          />
+        </div>
+        {subcategories && subcategories.length > 0 && (
+          <select
+            value={editSubcategoryId}
+            onChange={e => setEditSubcategoryId(e.target.value)}
+            className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            style={{ backgroundColor: '#0f1117', borderColor: '#2a2d3e', color: '#f1f5f9' }}
+          >
+            <option value="">— Uncategorized —</option>
+            {subcategories.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        )}
+        <div className="flex gap-2">
+          <button onClick={saveEdit} className="flex-1 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>Save</button>
+          <button onClick={() => setMode(null)} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
+        </div>
       </div>
     );
   }

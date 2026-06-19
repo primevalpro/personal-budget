@@ -58,7 +58,7 @@ export function useObligations(uid) {
     return () => unsub?.();
   }, [uid]);
 
-  async function addObligation(name, amount, dueDay, recurring = true) {
+  async function addObligation(name, amount, dueDay, recurring = true, subcategoryId = '') {
     await addDoc(collection(db, 'users', uid, 'obligations'), {
       name,
       amount: Number(amount),
@@ -67,6 +67,7 @@ export function useObligations(uid) {
       assignedMonth: '',
       paidMonth: '',
       recurring,
+      subcategoryId,
       createdAt: serverTimestamp(),
     });
   }

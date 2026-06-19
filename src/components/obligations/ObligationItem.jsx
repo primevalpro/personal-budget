@@ -21,7 +21,7 @@ function TrashIcon() {
   );
 }
 
-export default function ObligationItem({ obligation, onUpdate, onDelete, onAssign, onTogglePaid }) {
+export default function ObligationItem({ obligation, onUpdate, onDelete, onAssign, onTogglePaid, subcategories }) {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [adjustMode, setAdjustMode] = useState(false);
@@ -30,6 +30,7 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
   const [editAmount, setEditAmount] = useState(String(obligation.amount));
   const [editDueDay, setEditDueDay] = useState(String(obligation.dueDay));
   const [editRecurring, setEditRecurring] = useState(obligation.recurring !== false);
+  const [editSubcategoryId, setEditSubcategoryId] = useState(obligation.subcategoryId || '');
 
   const month = currentMonth();
   const assignedAmount = obligation.assignedAmount || 0;
@@ -87,6 +88,7 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
     setEditAmount(String(obligation.amount));
     setEditDueDay(String(obligation.dueDay));
     setEditRecurring(obligation.recurring !== false);
+    setEditSubcategoryId(obligation.subcategoryId || '');
     setEditing(true);
     setAdjustMode(false);
     setConfirmDelete(false);
@@ -97,7 +99,7 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
     const amount = Number(editAmount);
     const dueDay = Number(editDueDay);
     if (!name || isNaN(amount) || amount < 0 || isNaN(dueDay) || dueDay < 1 || dueDay > 31) return;
-    await onUpdate(obligation.id, { name, amount, dueDay, recurring: editRecurring });
+    await onUpdate(obligation.id, { name, amount, dueDay, recurring: editRecurring, subcategoryId: editSubcategoryId });
     setEditing(false);
   }
 
@@ -154,6 +156,19 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
           <button onClick={saveEdit} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>Save</button>
           <button onClick={() => setEditing(false)} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
         </div>
+        {subcategories && subcategories.length > 0 && (
+          <select
+            value={editSubcategoryId}
+            onChange={e => setEditSubcategoryId(e.target.value)}
+            className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            style={{ backgroundColor: '#0f1117', borderColor: '#2a2d3e', color: '#f1f5f9' }}
+          >
+            <option value="">— Uncategorized —</option>
+            {subcategories.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        )}
       </div>
     );
   }

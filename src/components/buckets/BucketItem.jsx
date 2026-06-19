@@ -21,7 +21,7 @@ function TrashIcon() {
   );
 }
 
-export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onWithdraw }) {
+export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onWithdraw, subcategories }) {
   const [mode, setMode] = useState(null); // null | 'assign' | 'withdraw' | 'edit' | 'delete'
   const [inputAmount, setInputAmount] = useState('');
   const [editName, setEditName] = useState(bucket.name);
@@ -29,6 +29,7 @@ export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onW
   const [editMonthlyTarget, setEditMonthlyTarget] = useState(
     bucket.monthlyTarget ? String(bucket.monthlyTarget) : ''
   );
+  const [editSubcategoryId, setEditSubcategoryId] = useState(bucket.subcategoryId || '');
 
   const current = bucket.currentAmount || 0;
   const pct = bucket.targetAmount > 0 ? current / bucket.targetAmount : 0;
@@ -66,6 +67,7 @@ export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onW
       name,
       targetAmount,
       monthlyTarget: Number(editMonthlyTarget) || 0,
+      subcategoryId: editSubcategoryId,
     });
     setMode(null);
   }
@@ -114,6 +116,19 @@ export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onW
           onKeyDown={editKeyDown}
           placeholder="Monthly target (optional)"
         />
+        {subcategories && subcategories.length > 0 && (
+          <select
+            value={editSubcategoryId}
+            onChange={e => setEditSubcategoryId(e.target.value)}
+            className="w-full border rounded-lg px-2 py-1.5 text-sm"
+            style={{ backgroundColor: '#0f1117', borderColor: '#2a2d3e', color: '#f1f5f9' }}
+          >
+            <option value="">— Uncategorized —</option>
+            {subcategories.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        )}
         <div className="flex gap-2">
           <button onClick={saveEdit} className="flex-1 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>Save</button>
           <button onClick={() => setMode(null)} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
