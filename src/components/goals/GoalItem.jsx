@@ -1,12 +1,6 @@
 import { useState } from 'react';
 import { formatCurrency } from '../../utils/dateUtils';
 
-function barColor(pct) {
-  if (pct >= 1) return '#ef4444';
-  if (pct >= 0.8) return '#f59e0b';
-  return '#6366f1';
-}
-
 function PencilIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -28,29 +22,48 @@ function TrashIcon() {
 }
 
 export default function GoalItem({ goal, onUpdate, onDelete, onAssign, onAddSpend, subcategories }) {
-  const [mode, setMode] = useState(null); // null | 'assign' | 'spend' | 'edit' | 'delete'
-  const [assignInput, setAssignInput] = useState('');
+  const [mode, setMode] = useState(null); // null | 'addFunds' | 'pencil' | 'spend' | 'edit' | 'delete'
+  const [input, setInput] = useState('');
   const [spendInput, setSpendInput] = useState('');
   const [editCategory, setEditCategory] = useState(goal.category);
   const [editTarget, setEditTarget] = useState(String(goal.targetAmount));
   const [editSubcategoryId, setEditSubcategoryId] = useState(goal.subcategoryId || '');
 
   const assigned = goal.assignedAmount || 0;
-  const spent = goal.spentAmount || 0;
-  const denominator = assigned > 0 ? assigned : goal.targetAmount;
-  const pct = denominator > 0 ? spent / denominator : 0;
-  const fillColor = barColor(pct);
+
+  const isUnfunded = assigned === 0;
+  const isFull = goal.targetAmount === 0 || assigned >= goal.targetAmount;
+  const isPartial = !isUnfunded && !isFull;
+  const pct = goal.targetAmount > 0 ? Math.min(assigned / goal.targetAmount, 1) : 1;
+  const barColor = isUnfunded ? '#ef4444' : isPartial ? '#f59e0b' : '#22c55e';
+  const statusColor = isUnfunded ? '#ef4444' : isPartial ? '#f59e0b' : '#22c55e';
+  const statusLabel = isUnfunded
+    ? 'Unfunded'
+    : isFull
+    ? 'Fully funded'
+    : `${formatCurrency(assigned)} of ${formatCurrency(goal.targetAmount)} assigned`;
 
   function reset() {
     setMode(null);
-    setAssignInput('');
+    setInput('');
     setSpendInput('');
   }
 
-  async function handleAssign() {
-    const val = Number(assignInput);
+  async function handleFullyFund() {
+    await onAssign(goal.id, assigned, goal.targetAmount);
+  }
+
+  async function handleAddFunds() {
+    const val = Number(input);
     if (isNaN(val) || val < 0) return;
-    await onAssign(goal.id, assigned, val);
+    await onAssign(goal.id, assigned, Math.max(0, assigned + val));
+    reset();
+  }
+
+  async function handlePencil() {
+    const val = Number(input);
+    if (isNaN(val) || val < 0) return;
+    await onAssign(goal.id, assigned, Math.max(0, val));
     reset();
   }
 
@@ -69,14 +82,11 @@ export default function GoalItem({ goal, onUpdate, onDelete, onAssign, onAddSpen
     setMode(null);
   }
 
-  function assignKeyDown(e) {
-    if (e.key === 'Enter') handleAssign();
-    if (e.key === 'Escape') reset();
-  }
-
-  function spendKeyDown(e) {
-    if (e.key === 'Enter') handleSpend();
-    if (e.key === 'Escape') reset();
+  function inputKeyDown(handler) {
+    return e => {
+      if (e.key === 'Enter') handler();
+      if (e.key === 'Escape') reset();
+    };
   }
 
   function editKeyDown(e) {
@@ -146,100 +156,125 @@ export default function GoalItem({ goal, onUpdate, onDelete, onAssign, onAddSpen
 
   return (
     <div className="py-3 px-2 group">
-      {/* Name + actions */}
+      {/* Name row + amount label + hover actions */}
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-sm font-medium" style={{ color: '#f1f5f9' }}>{goal.category}</span>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => { setAssignInput(String(assigned)); setMode('assign'); }}
-            className="px-2 py-0.5 rounded text-xs font-semibold hover:opacity-80"
-            style={{ color: '#6366f1' }}
-            title="Assign funds"
-          >
-            $
-          </button>
-          <button
-            onClick={() => setMode('spend')}
-            className="px-2 py-0.5 rounded text-xs font-semibold hover:opacity-80"
-            style={{ color: '#f59e0b' }}
-            title="Log spend"
-          >
-            +
-          </button>
-          <button
-            onClick={() => { setEditCategory(goal.category); setEditTarget(String(goal.targetAmount)); setMode('edit'); }}
-            className="p-1 rounded hover:opacity-70"
-            style={{ color: '#64748b' }}
-            title="Edit"
-          >
-            <PencilIcon />
-          </button>
-          <button
-            onClick={() => setMode('delete')}
-            className="p-1 rounded hover:opacity-70"
-            style={{ color: '#ef4444' }}
-            title="Delete"
-          >
-            <TrashIcon />
-          </button>
+        <div className="flex items-center gap-1">
+          <span className="text-xs tabular-nums mr-1" style={{ color: isFull ? '#22c55e' : '#64748b' }}>
+            {formatCurrency(assigned)} / {formatCurrency(goal.targetAmount)}
+          </span>
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => { setSpendInput(''); setMode('spend'); }}
+              className="px-2 py-0.5 rounded text-xs font-semibold hover:opacity-80"
+              style={{ color: '#f59e0b' }}
+              title="Log spend"
+            >
+              +
+            </button>
+            <button
+              onClick={() => { setEditCategory(goal.category); setEditTarget(String(goal.targetAmount)); setMode('edit'); }}
+              className="p-1 rounded hover:opacity-70"
+              style={{ color: '#64748b' }}
+              title="Edit"
+            >
+              <PencilIcon />
+            </button>
+            <button
+              onClick={() => setMode('delete')}
+              className="p-1 rounded hover:opacity-70"
+              style={{ color: '#ef4444' }}
+              title="Delete"
+            >
+              <TrashIcon />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Amounts row */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs tabular-nums" style={{ color: '#64748b' }}>
-          Assigned:{' '}
-          <span style={{ color: assigned > 0 ? '#f1f5f9' : '#64748b' }}>{formatCurrency(assigned)}</span>
-        </span>
-        <span
-          className="text-xs tabular-nums"
-          style={{ color: pct >= 1 ? '#ef4444' : pct >= 0.8 ? '#f59e0b' : '#64748b' }}
-        >
-          {formatCurrency(spent)}{assigned > 0 ? ` / ${formatCurrency(assigned)}` : ''}
-        </span>
-      </div>
-
       {/* Progress bar */}
-      <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#0f1117' }}>
+      <div className="h-1.5 rounded-full overflow-hidden mb-1" style={{ backgroundColor: '#2a2d3e' }}>
         <div
           className="h-full rounded-full transition-all duration-300"
-          style={{ width: `${Math.min(pct * 100, 100)}%`, backgroundColor: fillColor }}
+          style={{ width: `${pct * 100}%`, backgroundColor: barColor }}
         />
       </div>
 
-      {/* Assign input */}
-      {mode === 'assign' && (
-        <div className="flex gap-2 mt-2">
+      {/* Status label */}
+      <p className="text-xs mb-2" style={{ color: statusColor }}>{statusLabel}</p>
+
+      {/* Action buttons */}
+      {mode === null && (
+        <div className="flex gap-1.5">
+          <button
+            onClick={handleFullyFund}
+            className="px-2.5 py-1 rounded-md text-xs font-medium transition-opacity hover:opacity-90"
+            style={{ backgroundColor: '#22c55e22', color: '#22c55e', border: '1px solid #22c55e44' }}
+          >
+            Fully fund
+          </button>
+          <button
+            onClick={() => { setInput(''); setMode('addFunds'); }}
+            className="px-2.5 py-1 rounded-md text-xs font-medium transition-opacity hover:opacity-80 border"
+            style={{ borderColor: '#2a2d3e', color: '#64748b' }}
+          >
+            Add funds
+          </button>
+          <button
+            onClick={() => { setInput(String(assigned)); setMode('pencil'); }}
+            className="w-7 h-7 rounded-md flex items-center justify-center transition-opacity hover:opacity-80 border text-xs"
+            style={{ borderColor: '#2a2d3e', color: '#64748b' }}
+            title="Set assigned amount"
+          >
+            ✏
+          </button>
+        </div>
+      )}
+
+      {mode === 'addFunds' && (
+        <div className="flex gap-2">
           <input
             className="flex-1 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums outline-none"
             style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder={`Currently ${formatCurrency(assigned)}`}
-            value={assignInput}
-            onChange={e => setAssignInput(e.target.value)}
-            onKeyDown={assignKeyDown}
+            type="number" min="0" step="0.01"
+            placeholder="Amount to add"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={inputKeyDown(handleAddFunds)}
             autoFocus
           />
-          <button onClick={handleAssign} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>Assign</button>
+          <button onClick={handleAddFunds} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>Add</button>
           <button onClick={reset} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
         </div>
       )}
 
-      {/* Spend input */}
-      {mode === 'spend' && (
-        <div className="flex gap-2 mt-2">
+      {mode === 'pencil' && (
+        <div className="flex gap-2">
           <input
             className="flex-1 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums outline-none"
             style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
-            type="number"
-            min="0.01"
-            step="0.01"
+            type="number" min="0" step="0.01"
+            placeholder={formatCurrency(assigned)}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={inputKeyDown(handlePencil)}
+            autoFocus
+          />
+          <button onClick={handlePencil} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>Set</button>
+          <button onClick={reset} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
+        </div>
+      )}
+
+      {mode === 'spend' && (
+        <div className="flex gap-2">
+          <input
+            className="flex-1 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums outline-none"
+            style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
+            type="number" min="0.01" step="0.01"
             placeholder="Amount spent"
             value={spendInput}
             onChange={e => setSpendInput(e.target.value)}
-            onKeyDown={spendKeyDown}
+            onKeyDown={e => { if (e.key === 'Enter') handleSpend(); if (e.key === 'Escape') reset(); }}
             autoFocus
           />
           <button onClick={handleSpend} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#f59e0b', color: '#0f1117' }}>Log</button>

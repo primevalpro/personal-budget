@@ -24,7 +24,7 @@ function TrashIcon() {
 
 function SubcategoryBlock({
   subcat, items, allSubcats,
-  onAdd, onUpdateItem, onDeleteItem, onAddFunds, onWithdraw,
+  onAdd, onUpdateItem, onDeleteItem, onAddFunds, onWithdraw, onFullyFund, onSetMonthlyAssigned,
   onUpdateSubcat, onDeleteSubcat,
 }) {
   const [showAdd, setShowAdd] = useState(false);
@@ -122,7 +122,8 @@ function SubcategoryBlock({
               onUpdate={onUpdateItem}
               onDelete={onDeleteItem}
               onAddFunds={onAddFunds}
-              onWithdraw={onWithdraw}
+              onFullyFund={onFullyFund}
+              onSetMonthlyAssigned={onSetMonthlyAssigned}
               subcategories={allSubcats}
             />
           </div>
@@ -178,7 +179,7 @@ function SubcategoryBlock({
 
 export default function BucketsSection({
   buckets, subcategories,
-  addBucket, updateBucket, deleteBucket, addFunds, withdraw,
+  addBucket, updateBucket, deleteBucket, addFunds, withdraw, fullyFundBucket, setMonthlyAssigned,
   addSubcategory, updateSubcategory, deleteSubcategory,
 }) {
   const [showNewSubcat, setShowNewSubcat] = useState(false);
@@ -222,6 +223,8 @@ export default function BucketsSection({
             onDeleteItem={deleteBucket}
             onAddFunds={addFunds}
             onWithdraw={withdraw}
+            onFullyFund={fullyFundBucket}
+            onSetMonthlyAssigned={setMonthlyAssigned}
             onUpdateSubcat={name => updateSubcategory(subcat.id, name)}
             onDeleteSubcat={() => deleteSubcategory(subcat.id)}
           />
@@ -238,6 +241,8 @@ export default function BucketsSection({
             onDeleteItem={deleteBucket}
             onAddFunds={addFunds}
             onWithdraw={withdraw}
+            onFullyFund={fullyFundBucket}
+            onSetMonthlyAssigned={setMonthlyAssigned}
             onUpdateSubcat={null}
             onDeleteSubcat={null}
           />

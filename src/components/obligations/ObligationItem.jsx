@@ -24,8 +24,8 @@ function TrashIcon() {
 export default function ObligationItem({ obligation, onUpdate, onDelete, onAssign, onTogglePaid, subcategories }) {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [adjustMode, setAdjustMode] = useState(false);
-  const [adjustInput, setAdjustInput] = useState('');
+  const [mode, setMode] = useState(null); // null | 'addFunds' | 'pencil'
+  const [input, setInput] = useState('');
   const [editName, setEditName] = useState(obligation.name);
   const [editAmount, setEditAmount] = useState(String(obligation.amount));
   const [editDueDay, setEditDueDay] = useState(String(obligation.dueDay));
@@ -34,53 +34,46 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
 
   const month = currentMonth();
   const assignedAmount = obligation.assignedAmount || 0;
-  const isFull = obligation.assignedMonth === month && assignedAmount >= obligation.amount && obligation.amount > 0;
-  const isPartial = obligation.assignedMonth === month && assignedAmount > 0 && assignedAmount < obligation.amount;
   const isPaid = obligation.paidMonth === month;
   const isOneTime = obligation.recurring === false;
 
-  const aStyle = isFull
-    ? { backgroundColor: '#6366f1', borderColor: '#6366f1', color: '#f1f5f9' }
-    : isPartial
-    ? { backgroundColor: '#f59e0b', borderColor: '#f59e0b', color: '#0f1117' }
-    : { backgroundColor: 'transparent', borderColor: '#2a2d3e', color: '#64748b' };
+  const isUnfunded = assignedAmount === 0;
+  const isFull = obligation.amount === 0 || assignedAmount >= obligation.amount;
+  const isPartial = !isUnfunded && !isFull;
+  const pct = obligation.amount > 0 ? Math.min(assignedAmount / obligation.amount, 1) : 1;
+  const barColor = isUnfunded ? '#ef4444' : isPartial ? '#f59e0b' : '#22c55e';
+  const statusColor = isUnfunded ? '#ef4444' : isPartial ? '#f59e0b' : '#22c55e';
+  const statusLabel = isUnfunded
+    ? 'Unfunded'
+    : isFull
+    ? 'Fully funded'
+    : `${formatCurrency(assignedAmount)} of ${formatCurrency(obligation.amount)} assigned`;
 
-  async function handleToggleAssign() {
-    if (obligation.amount > 0 && assignedAmount >= obligation.amount) {
-      await onAssign(obligation.id, 0);
-    } else {
-      await onAssign(obligation.id, obligation.amount);
-    }
+  async function handleFullyFund() {
+    await onAssign(obligation.id, obligation.amount);
   }
 
-  function openAdjust() {
-    setAdjustInput(String(assignedAmount));
-    setAdjustMode(true);
-    setEditing(false);
-    setConfirmDelete(false);
+  async function handleAddFunds() {
+    const val = Number(input);
+    if (isNaN(val) || val < 0) return;
+    await onAssign(obligation.id, Math.max(0, assignedAmount + val));
+    setMode(null);
+    setInput('');
   }
 
-  function closeAdjust() {
-    setAdjustMode(false);
-    setAdjustInput('');
+  async function handlePencil() {
+    const val = Number(input);
+    if (isNaN(val) || val < 0) return;
+    await onAssign(obligation.id, Math.max(0, val));
+    setMode(null);
+    setInput('');
   }
 
-  async function submitAdjustAdd() {
-    const val = Number(adjustInput);
-    if (isNaN(val) || val <= 0) return;
-    await onAssign(obligation.id, assignedAmount + val);
-    closeAdjust();
-  }
-
-  async function submitAdjustSub() {
-    const val = Number(adjustInput);
-    if (isNaN(val) || val <= 0) return;
-    await onAssign(obligation.id, Math.max(0, assignedAmount - val));
-    closeAdjust();
-  }
-
-  function adjustKeyDown(e) {
-    if (e.key === 'Escape') closeAdjust();
+  function inputKeyDown(handler) {
+    return e => {
+      if (e.key === 'Enter') handler();
+      if (e.key === 'Escape') { setMode(null); setInput(''); }
+    };
   }
 
   function startEdit() {
@@ -90,7 +83,7 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
     setEditRecurring(obligation.recurring !== false);
     setEditSubcategoryId(obligation.subcategoryId || '');
     setEditing(true);
-    setAdjustMode(false);
+    setMode(null);
     setConfirmDelete(false);
   }
 
@@ -188,29 +181,10 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
   }
 
   return (
-    <div className={`rounded-lg transition-opacity ${isPaid ? 'opacity-40' : ''}`}>
-      <div className="flex items-center gap-2 py-2 px-2 group">
-        {/* A — full/zero toggle */}
-        <button
-          onClick={handleToggleAssign}
-          className="flex-shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center text-xs font-bold transition-colors"
-          style={aStyle}
-          title={isFull ? 'Fully assigned — click to unassign' : 'Click to assign full amount'}
-        >
-          A
-        </button>
-
-        {/* Pencil — open inline +/− adjuster */}
-        <button
-          onClick={adjustMode ? closeAdjust : openAdjust}
-          className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors"
-          style={{ color: adjustMode ? '#6366f1' : '#475569' }}
-          title="Adjust assigned amount"
-        >
-          <PencilIcon />
-        </button>
-
-        {/* P — paid toggle */}
+    <div className={`rounded-lg px-2 py-2 transition-opacity ${isPaid ? 'opacity-40' : ''}`}>
+      {/* Name row */}
+      <div className="flex items-center gap-2 group mb-1.5">
+        {/* Paid toggle */}
         <button
           onClick={() => onTogglePaid(obligation.id, isPaid, obligation)}
           className="flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors"
@@ -224,14 +198,9 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
           )}
         </button>
 
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-medium" style={{ color: '#f1f5f9' }}>{obligation.name}</span>
-          {isPartial && (
-            <p className="text-xs tabular-nums" style={{ color: '#f59e0b' }}>
-              Assigned {formatCurrency(assignedAmount)} of {formatCurrency(obligation.amount)}
-            </p>
-          )}
-        </div>
+        <span className="flex-1 text-sm font-medium min-w-0 truncate" style={{ color: '#f1f5f9' }}>
+          {obligation.name}
+        </span>
 
         {isOneTime && (
           <span className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide" style={{ backgroundColor: '#f59e0b22', color: '#f59e0b' }}>
@@ -239,11 +208,11 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
           </span>
         )}
 
-        <span className="text-sm font-semibold tabular-nums flex-shrink-0" style={{ color: '#f1f5f9' }}>
-          {formatCurrency(obligation.amount)}
+        <span className="text-xs tabular-nums flex-shrink-0" style={{ color: isFull ? '#22c55e' : '#64748b' }}>
+          {formatCurrency(assignedAmount)} / {formatCurrency(obligation.amount)}
         </span>
 
-        <span className="text-xs w-12 text-right flex-shrink-0" style={{ color: '#64748b' }}>
+        <span className="text-xs w-10 text-right flex-shrink-0" style={{ color: '#64748b' }}>
           {ordinalSuffix(obligation.dueDay)}
         </span>
 
@@ -253,44 +222,76 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
         </div>
       </div>
 
-      {/* Inline +/− adjuster */}
-      {adjustMode && (
-        <div className="flex gap-2 pb-2 px-2">
+      {/* Progress bar */}
+      <div className="h-1.5 rounded-full overflow-hidden mb-1" style={{ backgroundColor: '#2a2d3e' }}>
+        <div
+          className="h-full rounded-full transition-all duration-300"
+          style={{ width: `${pct * 100}%`, backgroundColor: barColor }}
+        />
+      </div>
+
+      {/* Status label */}
+      <p className="text-xs mb-2" style={{ color: statusColor }}>{statusLabel}</p>
+
+      {/* Action buttons */}
+      {mode === null && (
+        <div className="flex gap-1.5">
+          <button
+            onClick={handleFullyFund}
+            className="px-2.5 py-1 rounded-md text-xs font-medium transition-opacity hover:opacity-90"
+            style={{ backgroundColor: '#22c55e22', color: '#22c55e', border: '1px solid #22c55e44' }}
+          >
+            Fully fund
+          </button>
+          <button
+            onClick={() => { setInput(''); setMode('addFunds'); }}
+            className="px-2.5 py-1 rounded-md text-xs font-medium transition-opacity hover:opacity-80 border"
+            style={{ borderColor: '#2a2d3e', color: '#64748b' }}
+          >
+            Add funds
+          </button>
+          <button
+            onClick={() => { setInput(String(assignedAmount)); setMode('pencil'); }}
+            className="w-7 h-7 rounded-md flex items-center justify-center transition-opacity hover:opacity-80 border text-xs"
+            style={{ borderColor: '#2a2d3e', color: '#64748b' }}
+            title="Set assigned amount"
+          >
+            ✏
+          </button>
+        </div>
+      )}
+
+      {mode === 'addFunds' && (
+        <div className="flex gap-2">
           <input
             className="flex-1 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums outline-none"
             style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Amount"
-            value={adjustInput}
-            onChange={e => setAdjustInput(e.target.value)}
-            onKeyDown={adjustKeyDown}
+            type="number" min="0" step="0.01"
+            placeholder="Amount to add"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={inputKeyDown(handleAddFunds)}
             autoFocus
           />
-          <button
-            onClick={submitAdjustAdd}
-            className="px-3 py-1.5 rounded-lg text-sm font-bold"
-            style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
-            title="Add to assigned amount"
-          >
-            +
-          </button>
-          <button
-            onClick={submitAdjustSub}
-            className="px-3 py-1.5 rounded-lg text-sm font-bold"
-            style={{ backgroundColor: '#374151', color: '#f1f5f9' }}
-            title="Subtract from assigned amount"
-          >
-            −
-          </button>
-          <button
-            onClick={closeAdjust}
-            className="px-3 py-1.5 rounded-lg text-sm border"
-            style={{ borderColor: '#2a2d3e', color: '#64748b' }}
-          >
-            Cancel
-          </button>
+          <button onClick={handleAddFunds} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>Add</button>
+          <button onClick={() => { setMode(null); setInput(''); }} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
+        </div>
+      )}
+
+      {mode === 'pencil' && (
+        <div className="flex gap-2">
+          <input
+            className="flex-1 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums outline-none"
+            style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
+            type="number" min="0" step="0.01"
+            placeholder={formatCurrency(assignedAmount)}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={inputKeyDown(handlePencil)}
+            autoFocus
+          />
+          <button onClick={handlePencil} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>Set</button>
+          <button onClick={() => { setMode(null); setInput(''); }} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
         </div>
       )}
     </div>

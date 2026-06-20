@@ -72,5 +72,23 @@ export function useBuckets(uid) {
     });
   }
 
-  return { buckets, loading, addBucket, updateBucket, deleteBucket, addFunds, withdraw };
+  async function fullyFundBucket(id, monthlyTarget, monthlyAssigned, currentAmount) {
+    const delta = monthlyTarget - monthlyAssigned;
+    await updateDoc(doc(db, 'users', uid, 'buckets', id), {
+      monthlyAssigned: monthlyTarget,
+      monthlyAssignedMonth: currentMonth(),
+      currentAmount: currentAmount + delta,
+    });
+  }
+
+  async function setMonthlyAssigned(id, newValue, oldMonthlyAssigned, currentAmount) {
+    const delta = newValue - oldMonthlyAssigned;
+    await updateDoc(doc(db, 'users', uid, 'buckets', id), {
+      monthlyAssigned: newValue,
+      monthlyAssignedMonth: currentMonth(),
+      currentAmount: Math.max(0, currentAmount + delta),
+    });
+  }
+
+  return { buckets, loading, addBucket, updateBucket, deleteBucket, addFunds, withdraw, fullyFundBucket, setMonthlyAssigned };
 }

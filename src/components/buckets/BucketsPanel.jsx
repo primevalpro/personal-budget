@@ -2,7 +2,7 @@ import { useState } from 'react';
 import BucketItem from './BucketItem';
 import { formatCurrency } from '../../utils/dateUtils';
 
-export default function BucketsPanel({ buckets, loading, onAdd, onUpdate, onDelete, onAddFunds, onWithdraw }) {
+export default function BucketsPanel({ buckets, loading, onAdd, onUpdate, onDelete, onAddFunds, onWithdraw, onFullyFund, onSetMonthlyAssigned }) {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   const [newTarget, setNewTarget] = useState('');
@@ -93,7 +93,8 @@ export default function BucketsPanel({ buckets, loading, onAdd, onUpdate, onDele
                   onUpdate={onUpdate}
                   onDelete={onDelete}
                   onAddFunds={onAddFunds}
-                  onWithdraw={onWithdraw}
+                  onFullyFund={onFullyFund}
+                  onSetMonthlyAssigned={onSetMonthlyAssigned}
                 />
                 {i < buckets.length - 1 && <div className="border-t" style={{ borderColor: '#2a2d3e' }} />}
               </div>

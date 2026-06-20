@@ -28,8 +28,8 @@ export default function Dashboard({ user }) {
     addGoal, updateGoal, deleteGoal, assignGoal, addSpend,
   } = useGoals(uid);
   const {
-    buckets,
-    addBucket, updateBucket, deleteBucket, addFunds, withdraw,
+    buckets, loading: bucketsLoading,
+    addBucket, updateBucket, deleteBucket, addFunds, withdraw, fullyFundBucket, setMonthlyAssigned,
   } = useBuckets(uid);
   const { subcategories, addSubcategory, updateSubcategory, deleteSubcategory } = useSubcategories(uid);
 
@@ -104,6 +104,8 @@ export default function Dashboard({ user }) {
           deleteBucket={deleteBucket}
           addFunds={addFunds}
           withdraw={withdraw}
+          fullyFundBucket={fullyFundBucket}
+          setMonthlyAssigned={setMonthlyAssigned}
           addSubcategory={addSubcategory}
           updateSubcategory={updateSubcategory}
           deleteSubcategory={deleteSubcategory}

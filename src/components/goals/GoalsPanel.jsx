@@ -38,7 +38,7 @@ export default function GoalsPanel({ goals, loading, onAdd, onUpdate, onDelete, 
     >
       <div className="px-5 pt-5 pb-4">
         <div className="flex items-center justify-between mb-4">
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>Goals</p>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>Monthly Budgets</p>
           <p className="text-xs" style={{ color: '#64748b' }}>{monthLabel(currentMonth())}</p>
         </div>
         <div className="flex justify-between items-end">
@@ -64,7 +64,7 @@ export default function GoalsPanel({ goals, loading, onAdd, onUpdate, onDelete, 
           <p className="text-sm py-6 text-center" style={{ color: '#64748b' }}>Loading…</p>
         ) : goals.length === 0 ? (
           <p className="text-sm py-6 text-center px-4" style={{ color: '#64748b' }}>
-            No goals for this month — add one below.
+            No monthly budgets yet — add one below.
           </p>
         ) : (
           <div className="px-3 flex flex-col">
@@ -125,7 +125,7 @@ export default function GoalsPanel({ goals, loading, onAdd, onUpdate, onDelete, 
               className="w-full py-2 rounded-lg text-sm border transition-opacity hover:opacity-80"
               style={{ borderColor: '#2a2d3e', color: '#64748b' }}
             >
-              + Add Goal
+              + Add Monthly Budget
             </button>
           </div>
         </>

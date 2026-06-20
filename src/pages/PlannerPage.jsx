@@ -7,7 +7,7 @@ export default function PlannerPage({
   obligationSubcats, goalSubcats, bucketSubcats,
   addObligation, updateObligation, deleteObligation, assignObligation, togglePaid,
   addGoal, updateGoal, deleteGoal, assignGoal, addSpend,
-  addBucket, updateBucket, deleteBucket, addFunds, withdraw,
+  addBucket, updateBucket, deleteBucket, addFunds, withdraw, fullyFundBucket, setMonthlyAssigned,
   addSubcategory, updateSubcategory, deleteSubcategory,
   onGoToOverview,
 }) {
@@ -58,6 +58,8 @@ export default function PlannerPage({
             deleteBucket={deleteBucket}
             addFunds={addFunds}
             withdraw={withdraw}
+            fullyFundBucket={fullyFundBucket}
+            setMonthlyAssigned={setMonthlyAssigned}
             addSubcategory={name => addSubcategory(name, 'buckets')}
             updateSubcategory={updateSubcategory}
             deleteSubcategory={deleteSubcategory}
