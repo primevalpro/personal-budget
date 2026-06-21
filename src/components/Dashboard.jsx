@@ -70,6 +70,25 @@ export default function Dashboard({ user }) {
         onAddIncome={() => setShowIncomeModal(true)}
       />
 
+      <div className="border-b flex flex-shrink-0" style={{ borderColor: '#2a2d3e', backgroundColor: '#1a1d27' }}>
+        {[['Dashboard', 'overview'], ['Planner', 'planner']].map(([label, key]) => (
+          <button
+            key={key}
+            onClick={() => setPage(key)}
+            className="relative px-6 py-3 text-sm font-medium transition-colors"
+            style={{ color: page === key ? '#f1f5f9' : '#64748b' }}
+          >
+            {label}
+            {page === key && (
+              <span
+                className="absolute bottom-0 left-0 right-0 h-0.5"
+                style={{ backgroundColor: '#6366f1' }}
+              />
+            )}
+          </button>
+        ))}
+      </div>
+
       {page === 'overview' ? (
         <OverviewPage
           obligations={obligations}
@@ -78,7 +97,6 @@ export default function Dashboard({ user }) {
           cm={cm}
           income={income}
           onDeleteIncome={deleteIncome}
-          onGoToPlanner={() => setPage('planner')}
         />
       ) : (
         <PlannerPage
@@ -109,7 +127,6 @@ export default function Dashboard({ user }) {
           addSubcategory={addSubcategory}
           updateSubcategory={updateSubcategory}
           deleteSubcategory={deleteSubcategory}
-          onGoToOverview={() => setPage('overview')}
         />
       )}
 

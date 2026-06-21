@@ -9,21 +9,10 @@ export default function PlannerPage({
   addGoal, updateGoal, deleteGoal, assignGoal, addSpend,
   addBucket, updateBucket, deleteBucket, addFunds, withdraw, fullyFundBucket, setMonthlyAssigned,
   addSubcategory, updateSubcategory, deleteSubcategory,
-  onGoToOverview,
 }) {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="p-4 md:p-6 max-w-3xl mx-auto">
-        <div className="flex items-center mb-6">
-          <button
-            onClick={onGoToOverview}
-            className="flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-80"
-            style={{ color: '#6366f1' }}
-          >
-            ← Overview
-          </button>
-        </div>
-
         <div className="flex flex-col gap-12">
           <ObligationsSection
             obligations={obligations}
