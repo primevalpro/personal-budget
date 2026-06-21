@@ -127,7 +127,7 @@ export default function ImportReviewScreen({ rows, goals, obligations, buckets, 
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4">
         {matchedIdx.length > 0 && (
           <Section title={`Matched (${matchedIdx.length})`} color="#22c55e">
             {matchedIdx.map(i => (
