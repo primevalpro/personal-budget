@@ -4,7 +4,7 @@ import { formatCurrency } from '../../utils/dateUtils';
 
 const DOT_COLOR = { goal: '#6366f1', obligation: '#14b8a6', skipped: '#64748b' };
 
-export default function TransactionGrouped({ transactions, goals, obligations, onUpdate, onDelete }) {
+export default function TransactionGrouped({ transactions, goals, obligations, buckets, onUpdate, onDelete }) {
   const [expanded, setExpanded] = useState({});
 
   const groups = {};
@@ -59,6 +59,7 @@ export default function TransactionGrouped({ transactions, goals, obligations, o
                     tx={tx}
                     goals={goals}
                     obligations={obligations}
+                    buckets={buckets}
                     showCategory={false}
                     onUpdate={onUpdate}
                     onDelete={onDelete}

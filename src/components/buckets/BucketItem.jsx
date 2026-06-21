@@ -297,20 +297,28 @@ export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onF
         </div>
       )}
 
-      {/* Overall section — read-only blue bar */}
+      {/* Overall section — read-only bar */}
       <div>
         <div className="flex items-center justify-between mb-1">
           <span className="text-xs font-medium" style={{ color: '#64748b' }}>Overall</span>
-          <span className="text-xs tabular-nums" style={{ color: overallPct >= 1 ? '#22c55e' : '#64748b' }}>
+          <span className="text-xs tabular-nums" style={{ color: current < 0 ? '#ef4444' : overallPct >= 1 ? '#22c55e' : '#64748b' }}>
             {formatCurrency(current)} / {formatCurrency(targetAmount)}
           </span>
         </div>
         <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#2a2d3e' }}>
           <div
             className="h-full rounded-full transition-all duration-300"
-            style={{ width: `${overallPct * 100}%`, backgroundColor: '#3b82f6' }}
+            style={{
+              width: current < 0 ? '100%' : `${overallPct * 100}%`,
+              backgroundColor: current < 0 ? '#ef4444' : '#3b82f6',
+            }}
           />
         </div>
+        {current < 0 && (
+          <p className="text-xs mt-1" style={{ color: '#ef4444' }}>
+            Fund overdrawn by {formatCurrency(Math.abs(current))}
+          </p>
+        )}
       </div>
     </div>
   );

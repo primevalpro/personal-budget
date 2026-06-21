@@ -4,10 +4,11 @@ import { formatCurrency } from '../../utils/dateUtils';
 const CATEGORY_COLOR = {
   goal: '#6366f1',
   obligation: '#14b8a6',
+  bucket: '#3b82f6',
   skipped: '#64748b',
 };
 
-export default function TransactionRow({ tx, goals, obligations, showCategory, onUpdate, onDelete }) {
+export default function TransactionRow({ tx, goals, obligations, buckets, showCategory, onUpdate, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editDesc, setEditDesc] = useState('');
@@ -25,6 +26,13 @@ export default function TransactionRow({ tx, goals, obligations, showCategory, o
     setDeleting(false);
   }
 
+  function findCategoryDoc(type, id) {
+    if (type === 'goal') return goals.find(g => g.id === id) ?? null;
+    if (type === 'obligation') return obligations.find(o => o.id === id) ?? null;
+    if (type === 'bucket') return buckets.find(b => b.id === id) ?? null;
+    return null;
+  }
+
   function handleCategoryChange(e) {
     const val = e.target.value;
     if (val === '__skipped__') {
@@ -33,9 +41,7 @@ export default function TransactionRow({ tx, goals, obligations, showCategory, o
       setEditName('Skipped');
     } else {
       const [type, id] = val.split('::');
-      const match = type === 'goal'
-        ? goals.find(g => g.id === id)
-        : obligations.find(o => o.id === id);
+      const match = findCategoryDoc(type, id);
       setEditType(type);
       setEditId(id);
       setEditName(match ? (type === 'goal' ? match.category : match.name) : '');
@@ -56,16 +62,8 @@ export default function TransactionRow({ tx, goals, obligations, showCategory, o
         categoryId: editId || null,
         categoryName: editName,
       };
-      const oldDoc = tx.categoryType === 'goal'
-        ? goals.find(g => g.id === tx.categoryId)
-        : tx.categoryType === 'obligation'
-          ? obligations.find(o => o.id === tx.categoryId)
-          : null;
-      const newDoc = editType === 'goal'
-        ? goals.find(g => g.id === editId)
-        : editType === 'obligation'
-          ? obligations.find(o => o.id === editId)
-          : null;
+      const oldDoc = findCategoryDoc(tx.categoryType, tx.categoryId);
+      const newDoc = findCategoryDoc(editType, editId);
       await onUpdate(tx, newFields, oldDoc, newDoc);
       setEditing(false);
     } finally {
@@ -76,11 +74,7 @@ export default function TransactionRow({ tx, goals, obligations, showCategory, o
   async function handleDelete() {
     setSaving(true);
     try {
-      const categoryDoc = tx.categoryType === 'goal'
-        ? goals.find(g => g.id === tx.categoryId)
-        : tx.categoryType === 'obligation'
-          ? obligations.find(o => o.id === tx.categoryId)
-          : null;
+      const categoryDoc = findCategoryDoc(tx.categoryType, tx.categoryId);
       await onDelete(tx, categoryDoc);
     } finally {
       setSaving(false);
@@ -111,6 +105,9 @@ export default function TransactionRow({ tx, goals, obligations, showCategory, o
           </optgroup>
           <optgroup label="Obligations">
             {obligations.map(o => <option key={o.id} value={`obligation::${o.id}`}>{o.name}</option>)}
+          </optgroup>
+          <optgroup label="Funds">
+            {buckets.map(b => <option key={b.id} value={`bucket::${b.id}`}>{b.name}</option>)}
           </optgroup>
         </select>
         <button

@@ -23,7 +23,10 @@ export function useTransactions(uid, month) {
     });
   }, [uid, month]);
 
-  async function importTransactions({ txDocs, goalIncrements, obligationUpdates, newRules }) {
+  async function importTransactions({ txDocs, goalIncrements, obligationUpdates, bucketUpdates, newRules }) {
+    // goalIncrements: { [goalId]: positiveNumber }
+    // obligationUpdates: { [oblId]: { newAssigned, total, txMonth } }
+    // bucketUpdates: { [bucketId]: { newAmount } }
     const batch = writeBatch(db);
 
     for (const tx of txDocs) {
@@ -46,6 +49,10 @@ export function useTransactions(uid, month) {
       batch.update(doc(db, 'users', uid, 'obligations', oblId), fields);
     }
 
+    for (const [bucketId, { newAmount }] of Object.entries(bucketUpdates)) {
+      batch.update(doc(db, 'users', uid, 'buckets', bucketId), { currentAmount: newAmount });
+    }
+
     for (const rule of newRules) {
       const ref = doc(collection(db, 'users', uid, 'categoryRules'));
       batch.set(ref, { ...rule, createdAt: serverTimestamp() });
@@ -63,6 +70,7 @@ export function useTransactions(uid, month) {
     batch.update(doc(db, 'users', uid, 'transactions', tx.id), newFields);
 
     if (categoryChanged) {
+      // Reverse old category
       if (tx.categoryType === 'goal' && oldCategoryDoc) {
         const newSpent = Math.max(0, (oldCategoryDoc.spentAmount ?? 0) - absAmt);
         batch.update(doc(db, 'users', uid, 'goals', tx.categoryId), { spentAmount: newSpent });
@@ -71,8 +79,13 @@ export function useTransactions(uid, month) {
         const updates = { assignedAmount: newAmt, assignedMonth: newAmt > 0 ? tx.month : '' };
         if (newAmt < (oldCategoryDoc.amount ?? 0)) updates.paidMonth = '';
         batch.update(doc(db, 'users', uid, 'obligations', tx.categoryId), updates);
+      } else if (tx.categoryType === 'bucket' && oldCategoryDoc) {
+        // Reverse spend: add the amount back to currentAmount
+        const newAmt = (oldCategoryDoc.currentAmount ?? 0) + absAmt;
+        batch.update(doc(db, 'users', uid, 'buckets', tx.categoryId), { currentAmount: newAmt });
       }
 
+      // Apply new category
       if (newFields.categoryType === 'goal' && newCategoryDoc) {
         const newSpent = (newCategoryDoc.spentAmount ?? 0) + absAmt;
         batch.update(doc(db, 'users', uid, 'goals', newFields.categoryId), { spentAmount: newSpent });
@@ -81,6 +94,10 @@ export function useTransactions(uid, month) {
         const updates = { assignedAmount: newAmt, assignedMonth: tx.month };
         if (newAmt >= (newCategoryDoc.amount ?? 0)) updates.paidMonth = tx.month;
         batch.update(doc(db, 'users', uid, 'obligations', newFields.categoryId), updates);
+      } else if (newFields.categoryType === 'bucket' && newCategoryDoc) {
+        // Spend from bucket: subtract from currentAmount (no floor)
+        const newAmt = (newCategoryDoc.currentAmount ?? 0) - absAmt;
+        batch.update(doc(db, 'users', uid, 'buckets', newFields.categoryId), { currentAmount: newAmt });
       }
     }
 
@@ -101,6 +118,10 @@ export function useTransactions(uid, month) {
       const updates = { assignedAmount: newAmt, assignedMonth: newAmt > 0 ? tx.month : '' };
       if (newAmt < (categoryDoc.amount ?? 0)) updates.paidMonth = '';
       batch.update(doc(db, 'users', uid, 'obligations', tx.categoryId), updates);
+    } else if (tx.categoryType === 'bucket' && categoryDoc) {
+      // Reverse spend: add the amount back
+      const newAmt = (categoryDoc.currentAmount ?? 0) + absAmt;
+      batch.update(doc(db, 'users', uid, 'buckets', tx.categoryId), { currentAmount: newAmt });
     }
 
     await batch.commit();

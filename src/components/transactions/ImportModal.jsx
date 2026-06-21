@@ -52,7 +52,7 @@ const AUTO_SKIP = [
   { test: r => r.amount > 0, reason: 'Income / credit' },
 ];
 
-export default function ImportModal({ uid, goals, obligations, categoryRules, onImport, onClose }) {
+export default function ImportModal({ uid, goals, obligations, buckets, categoryRules, onImport, onClose }) {
   const [step, setStep] = useState('upload');
   const [parsedRows, setParsedRows] = useState([]);
   const [availableMonths, setAvailableMonths] = useState([]);
@@ -218,6 +218,7 @@ export default function ImportModal({ uid, goals, obligations, categoryRules, on
               rows={reviewRows}
               goals={goals}
               obligations={obligations}
+              buckets={buckets}
               onConfirm={handleConfirm}
               onBack={() => setStep(availableMonths.length > 1 ? 'month-select' : 'upload')}
             />

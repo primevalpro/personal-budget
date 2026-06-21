@@ -3,6 +3,7 @@ import { useTransactions } from '../../hooks/useTransactions';
 import { useGoals } from '../../hooks/useGoals';
 import { useObligations } from '../../hooks/useObligations';
 import { useCategoryRules } from '../../hooks/useCategoryRules';
+import { useBuckets } from '../../hooks/useBuckets';
 import { currentMonth, monthLabel } from '../../utils/dateUtils';
 import TransactionSummary from './TransactionSummary';
 import TransactionGrouped from './TransactionGrouped';
@@ -31,6 +32,7 @@ export default function TransactionsPage({ uid }) {
   const { goals } = useGoals(uid);
   const { obligations } = useObligations(uid);
   const { rules: categoryRules } = useCategoryRules(uid);
+  const { buckets } = useBuckets(uid);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -87,6 +89,7 @@ export default function TransactionsPage({ uid }) {
             transactions={transactions}
             goals={goals}
             obligations={obligations}
+            buckets={buckets}
             onUpdate={updateTransaction}
             onDelete={deleteTransaction}
           />
@@ -95,6 +98,7 @@ export default function TransactionsPage({ uid }) {
             transactions={transactions}
             goals={goals}
             obligations={obligations}
+            buckets={buckets}
             onUpdate={updateTransaction}
             onDelete={deleteTransaction}
           />
@@ -106,6 +110,7 @@ export default function TransactionsPage({ uid }) {
           uid={uid}
           goals={goals}
           obligations={obligations}
+          buckets={buckets}
           categoryRules={categoryRules}
           onImport={importTransactions}
           onClose={() => setShowImport(false)}

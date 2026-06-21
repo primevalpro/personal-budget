@@ -1,6 +1,6 @@
 import TransactionRow from './TransactionRow';
 
-export default function TransactionChronological({ transactions, goals, obligations, onUpdate, onDelete }) {
+export default function TransactionChronological({ transactions, goals, obligations, buckets, onUpdate, onDelete }) {
   if (transactions.length === 0) {
     return (
       <div className="p-6 text-center text-sm" style={{ color: '#64748b' }}>
@@ -21,6 +21,7 @@ export default function TransactionChronological({ transactions, goals, obligati
             tx={tx}
             goals={goals}
             obligations={obligations}
+            buckets={buckets}
             showCategory={true}
             onUpdate={onUpdate}
             onDelete={onDelete}

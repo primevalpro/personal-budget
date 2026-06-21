@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { formatCurrency } from '../../utils/dateUtils';
 
-export default function ImportReviewScreen({ rows, goals, obligations, onConfirm, onBack }) {
+export default function ImportReviewScreen({ rows, goals, obligations, buckets, onConfirm, onBack }) {
   const [assignments, setAssignments] = useState({});
   const [rulePrompt, setRulePrompt] = useState({});
   const [ruleSaved, setRuleSaved] = useState({});
@@ -22,20 +22,32 @@ export default function ImportReviewScreen({ rows, goals, obligations, onConfirm
 
   function selectValue(i) {
     const a = getAssignment(i);
-    if (!a.categoryType || a.categoryType === 'skipped' || !a.categoryId) return '__skipped__';
+    if (a.categoryType == null) return '';           // truly unassigned — shows disabled placeholder
+    if (a.categoryType === 'skipped') return '__skipped__';
     return `${a.categoryType}::${a.categoryId}`;
+  }
+
+  function resolveMatch(type, id) {
+    if (type === 'goal') return goals.find(g => g.id === id);
+    if (type === 'obligation') return obligations.find(o => o.id === id);
+    if (type === 'bucket') return buckets.find(b => b.id === id);
+    return null;
+  }
+
+  function categoryName(type, match) {
+    if (!match) return '';
+    return type === 'goal' ? match.category : match.name;
   }
 
   function handleChange(i, val, showPrompt) {
     let next;
+    if (val === '' || val === '__placeholder__') return;
     if (val === '__skipped__') {
       next = { categoryType: 'skipped', categoryId: null, categoryName: 'Skipped' };
     } else {
       const [type, id] = val.split('::');
-      const match = type === 'goal'
-        ? goals.find(g => g.id === id)
-        : obligations.find(o => o.id === id);
-      next = { categoryType: type, categoryId: id, categoryName: match ? (type === 'goal' ? match.category : match.name) : '' };
+      const match = resolveMatch(type, id);
+      next = { categoryType: type, categoryId: id, categoryName: categoryName(type, match) };
     }
     setAssignments(p => ({ ...p, [i]: next }));
     if (showPrompt && val !== '__skipped__') {
@@ -46,15 +58,8 @@ export default function ImportReviewScreen({ rows, goals, obligations, onConfirm
     }
   }
 
-  const allNeedsAssigned = needsIdx.every(i => {
-    const a = getAssignment(i);
-    return a.categoryType && a.categoryType !== 'skipped' && a.categoryId;
-  });
-  // also allow confirming if user explicitly chose skipped for a needs-assignment row
-  const confirmReady = needsIdx.every(i => {
-    const a = getAssignment(i);
-    return a.categoryType != null;
-  });
+  // Confirm is ready when every needs-assignment row has any explicit selection (including skipped)
+  const confirmReady = needsIdx.every(i => getAssignment(i).categoryType != null);
 
   async function handleConfirm() {
     setConfirming(true);
@@ -62,6 +67,7 @@ export default function ImportReviewScreen({ rows, goals, obligations, onConfirm
       const txDocs = [];
       const goalIncrements = {};
       const obligationUpdates = {};
+      const bucketUpdates = {};
       const newRules = [];
 
       for (let i = 0; i < rows.length; i++) {
@@ -93,6 +99,14 @@ export default function ImportReviewScreen({ rows, goals, obligations, onConfirm
             }
             obligationUpdates[a.categoryId].newAssigned += Math.abs(row.amount);
           }
+        } else if (a.categoryType === 'bucket' && a.categoryId) {
+          const bucket = buckets.find(b => b.id === a.categoryId);
+          if (bucket) {
+            if (!bucketUpdates[a.categoryId]) {
+              bucketUpdates[a.categoryId] = { newAmount: bucket.currentAmount ?? 0 };
+            }
+            bucketUpdates[a.categoryId].newAmount -= Math.abs(row.amount);
+          }
         }
 
         if (ruleSaved[i] && a.categoryId && a.categoryType !== 'skipped') {
@@ -105,7 +119,7 @@ export default function ImportReviewScreen({ rows, goals, obligations, onConfirm
         }
       }
 
-      await onConfirm({ txDocs, goalIncrements, obligationUpdates, newRules });
+      await onConfirm({ txDocs, goalIncrements, obligationUpdates, bucketUpdates, newRules });
     } finally {
       setConfirming(false);
     }
@@ -114,7 +128,6 @@ export default function ImportReviewScreen({ rows, goals, obligations, onConfirm
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-        {/* Matched */}
         {matchedIdx.length > 0 && (
           <Section title={`Matched (${matchedIdx.length})`} color="#22c55e">
             {matchedIdx.map(i => (
@@ -123,6 +136,7 @@ export default function ImportReviewScreen({ rows, goals, obligations, onConfirm
                 row={rows[i]}
                 goals={goals}
                 obligations={obligations}
+                buckets={buckets}
                 selectValue={selectValue(i)}
                 onChange={val => handleChange(i, val, true)}
                 showRulePrompt={rulePrompt[i] && !ruleSaved[i]}
@@ -135,7 +149,6 @@ export default function ImportReviewScreen({ rows, goals, obligations, onConfirm
           </Section>
         )}
 
-        {/* Needs Assignment */}
         {needsIdx.length > 0 && (
           <Section title={`Needs assignment (${needsIdx.length})`} color="#f59e0b">
             {needsIdx.map(i => (
@@ -144,6 +157,7 @@ export default function ImportReviewScreen({ rows, goals, obligations, onConfirm
                 row={rows[i]}
                 goals={goals}
                 obligations={obligations}
+                buckets={buckets}
                 selectValue={selectValue(i)}
                 onChange={val => handleChange(i, val, true)}
                 showRulePrompt={rulePrompt[i] && !ruleSaved[i]}
@@ -151,13 +165,12 @@ export default function ImportReviewScreen({ rows, goals, obligations, onConfirm
                 onSaveRule={() => setRuleSaved(p => ({ ...p, [i]: true }))}
                 onDismissRule={() => setRulePrompt(p => ({ ...p, [i]: false }))}
                 currentAssignment={getAssignment(i)}
-                required={!getAssignment(i).categoryType}
+                required={getAssignment(i).categoryType == null}
               />
             ))}
           </Section>
         )}
 
-        {/* Skipped */}
         {skippedIdx.length > 0 && (
           <div className="rounded-lg overflow-hidden" style={{ border: '1px solid #2a2d3e' }}>
             <button
@@ -177,6 +190,7 @@ export default function ImportReviewScreen({ rows, goals, obligations, onConfirm
                     row={rows[i]}
                     goals={goals}
                     obligations={obligations}
+                    buckets={buckets}
                     selectValue={selectValue(i)}
                     onChange={val => handleChange(i, val, false)}
                     currentAssignment={getAssignment(i)}
@@ -190,7 +204,7 @@ export default function ImportReviewScreen({ rows, goals, obligations, onConfirm
       </div>
 
       <div
-        className="flex items-center justify-between gap-3 px-4 py-4 border-t"
+        className="flex items-center justify-between gap-3 px-4 py-4 border-t flex-shrink-0"
         style={{ borderColor: '#2a2d3e', backgroundColor: '#1a1d27' }}
       >
         <button
@@ -231,7 +245,30 @@ function Section({ title, color, children }) {
   );
 }
 
-function ReviewRow({ row, goals, obligations, selectValue, onChange, showRulePrompt, ruleSaved, onSaveRule, onDismissRule, currentAssignment, required, skipReason }) {
+function CategoryDropdown({ goals, obligations, buckets, value, onChange }) {
+  return (
+    <select
+      className="text-sm px-2 py-1 rounded border flex-shrink-0"
+      style={{ borderColor: '#2a2d3e', backgroundColor: '#0f1117', color: '#f1f5f9', minWidth: 160 }}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+    >
+      <option value="" disabled hidden>Select a category</option>
+      <optgroup label="Monthly Budgets">
+        {goals.map(g => <option key={g.id} value={`goal::${g.id}`}>{g.category}</option>)}
+      </optgroup>
+      <optgroup label="Obligations">
+        {obligations.map(o => <option key={o.id} value={`obligation::${o.id}`}>{o.name}</option>)}
+      </optgroup>
+      <optgroup label="Funds">
+        {buckets.map(b => <option key={b.id} value={`bucket::${b.id}`}>{b.name}</option>)}
+      </optgroup>
+      <option value="__skipped__">— Skipped —</option>
+    </select>
+  );
+}
+
+function ReviewRow({ row, goals, obligations, buckets, selectValue, onChange, showRulePrompt, ruleSaved, onSaveRule, onDismissRule, currentAssignment, required, skipReason }) {
   return (
     <div className="px-4 py-3 border-b" style={{ borderColor: '#2a2d3e' }}>
       <div className="flex items-center gap-3 flex-wrap">
@@ -242,20 +279,13 @@ function ReviewRow({ row, goals, obligations, selectValue, onChange, showRulePro
         <span className="text-sm tabular-nums font-medium flex-shrink-0" style={{ color: '#f1f5f9' }}>
           {formatCurrency(row.amount)}
         </span>
-        <select
-          className="text-sm px-2 py-1 rounded border flex-shrink-0"
-          style={{ borderColor: '#2a2d3e', backgroundColor: '#0f1117', color: '#f1f5f9', minWidth: 160 }}
+        <CategoryDropdown
+          goals={goals}
+          obligations={obligations}
+          buckets={buckets}
           value={selectValue}
-          onChange={e => onChange(e.target.value)}
-        >
-          <option value="__skipped__">— Skipped —</option>
-          <optgroup label="Monthly Budgets">
-            {goals.map(g => <option key={g.id} value={`goal::${g.id}`}>{g.category}</option>)}
-          </optgroup>
-          <optgroup label="Obligations">
-            {obligations.map(o => <option key={o.id} value={`obligation::${o.id}`}>{o.name}</option>)}
-          </optgroup>
-        </select>
+          onChange={onChange}
+        />
       </div>
 
       {required && (
@@ -269,20 +299,8 @@ function ReviewRow({ row, goals, obligations, selectValue, onChange, showRulePro
           <span className="text-xs" style={{ color: '#64748b' }}>
             Always match "{row.originalDescription}" to {currentAssignment.categoryName}?
           </span>
-          <button
-            onClick={onSaveRule}
-            className="text-xs underline"
-            style={{ color: '#6366f1' }}
-          >
-            Yes
-          </button>
-          <button
-            onClick={onDismissRule}
-            className="text-xs"
-            style={{ color: '#64748b' }}
-          >
-            No
-          </button>
+          <button onClick={onSaveRule} className="text-xs underline" style={{ color: '#6366f1' }}>Yes</button>
+          <button onClick={onDismissRule} className="text-xs" style={{ color: '#64748b' }}>No</button>
         </div>
       )}
       {ruleSaved && (
