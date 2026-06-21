@@ -105,7 +105,7 @@ export default function SummaryBar({
             <span className="text-xs tabular-nums mt-0.5" style={{ color: '#64748b' }}>
               {gapBreakdown.obligations > 0 && `Obligations ${formatCurrency(gapBreakdown.obligations)}`}
               {gapBreakdown.obligations > 0 && (gapBreakdown.goals > 0 || gapBreakdown.buckets > 0) && ' · '}
-              {gapBreakdown.goals > 0 && `Goals ${formatCurrency(gapBreakdown.goals)}`}
+              {gapBreakdown.goals > 0 && `Monthly Budgets ${formatCurrency(gapBreakdown.goals)}`}
               {gapBreakdown.goals > 0 && gapBreakdown.buckets > 0 && ' · '}
               {gapBreakdown.buckets > 0 && `Buckets ${formatCurrency(gapBreakdown.buckets)}`}
             </span>

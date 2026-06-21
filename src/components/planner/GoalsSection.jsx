@@ -158,7 +158,7 @@ function SubcategoryBlock({
             className="w-full py-2.5 text-sm transition-opacity hover:opacity-80"
             style={{ borderTop: items.length > 0 ? '1px solid #2a2d3e' : 'none', color: '#64748b' }}
           >
-            + Add goal
+            + Add monthly budget
           </button>
         )}
       </div>
@@ -192,7 +192,7 @@ export default function GoalsSection({
     <section>
       <div className="flex items-center gap-4 pb-3 mb-5" style={{ borderBottom: '1px solid #2a2d3e' }}>
         <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>
-          Goals
+          Monthly Budgets
         </span>
         {goals.length > 0 && (
           <span className="text-xs tabular-nums" style={{ color: '#64748b' }}>

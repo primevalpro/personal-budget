@@ -32,7 +32,7 @@ export default function OverviewCard({ type, obligations = [], goals = [], bucke
     const assigned = goals.reduce((s, g) => s + (g.assignedAmount || 0), 0);
     const spent = goals.reduce((s, g) => s + (g.spentAmount || 0), 0);
 
-    title = 'Goals';
+    title = 'Monthly Budgets';
     primaryAmount = formatCurrency(totalTarget);
     primaryLabel = 'monthly budget';
     pct = totalTarget > 0 ? Math.min(1, assigned / totalTarget) : 0;
