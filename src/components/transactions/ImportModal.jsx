@@ -137,11 +137,16 @@ export default function ImportModal({ uid, goals, obligations, buckets, category
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
+      {/*
+        Modal wrapper: max-height caps the total height.
+        flex-col lets the three layers (header / list / footer) stack.
+        overflow-hidden clips to the rounded corners.
+      */}
       <div
         className="flex flex-col w-full max-w-2xl rounded-xl overflow-hidden shadow-2xl"
-        style={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3e', maxHeight: '90vh' }}
+        style={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3e', maxHeight: '85vh' }}
       >
-        {/* Header */}
+        {/* Header — always fixed, never scrolls */}
         <div className="flex items-center justify-between px-5 py-4 border-b flex-shrink-0" style={{ borderColor: '#2a2d3e' }}>
           <h2 className="text-base font-semibold" style={{ color: '#f1f5f9' }}>
             {step === 'upload' && 'Import CSV'}
@@ -151,79 +156,86 @@ export default function ImportModal({ uid, goals, obligations, buckets, category
           <button onClick={onClose} className="text-lg hover:opacity-60" style={{ color: '#64748b' }}>✕</button>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-          {step === 'upload' && (
-            <div className="p-6 flex flex-col items-center gap-4">
-              <div
-                className="w-full rounded-xl border-2 border-dashed flex flex-col items-center justify-center py-12 gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-                style={{ borderColor: '#2a2d3e' }}
-                onClick={() => fileRef.current?.click()}
-                onDragOver={e => e.preventDefault()}
-                onDrop={e => { e.preventDefault(); processFile(e.dataTransfer.files[0]); }}
+        {/* Upload step — simple scrollable body */}
+        {step === 'upload' && (
+          <div className="overflow-y-auto p-6 flex flex-col items-center gap-4">
+            <div
+              className="w-full rounded-xl border-2 border-dashed flex flex-col items-center justify-center py-12 gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+              style={{ borderColor: '#2a2d3e' }}
+              onClick={() => fileRef.current?.click()}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => { e.preventDefault(); processFile(e.dataTransfer.files[0]); }}
+            >
+              <span className="text-3xl">📂</span>
+              <span className="text-sm" style={{ color: '#f1f5f9' }}>Click or drag a USAA CSV file here</span>
+              <span className="text-xs" style={{ color: '#64748b' }}>Accepts .csv only</span>
+            </div>
+            <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => processFile(e.target.files[0])} />
+            {error && <p className="text-sm" style={{ color: '#ef4444' }}>{error}</p>}
+            {loading && <p className="text-sm" style={{ color: '#64748b' }}>Processing…</p>}
+          </div>
+        )}
+
+        {/* Month select step — simple scrollable body */}
+        {step === 'month-select' && (
+          <div className="overflow-y-auto p-6 flex flex-col gap-4">
+            <p className="text-sm" style={{ color: '#64748b' }}>
+              This file contains transactions from multiple months. Which month would you like to import?
+            </p>
+            <div className="flex flex-col gap-2">
+              {availableMonths.map(m => (
+                <label key={m} className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="month"
+                    value={m}
+                    checked={selectedMonth === m}
+                    onChange={() => setSelectedMonth(m)}
+                    className="accent-indigo-500"
+                  />
+                  <span className="text-sm" style={{ color: '#f1f5f9' }}>{monthLabel(m)}</span>
+                </label>
+              ))}
+            </div>
+            {error && <p className="text-sm" style={{ color: '#ef4444' }}>{error}</p>}
+            <div className="flex gap-3 mt-2">
+              <button
+                onClick={() => setStep('upload')}
+                className="text-sm px-4 py-2 rounded-lg border"
+                style={{ borderColor: '#2a2d3e', color: '#64748b' }}
               >
-                <span className="text-3xl">📂</span>
-                <span className="text-sm" style={{ color: '#f1f5f9' }}>Click or drag a USAA CSV file here</span>
-                <span className="text-xs" style={{ color: '#64748b' }}>Accepts .csv only</span>
-              </div>
-              <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => processFile(e.target.files[0])} />
-              {error && <p className="text-sm" style={{ color: '#ef4444' }}>{error}</p>}
-              {loading && <p className="text-sm" style={{ color: '#64748b' }}>Processing…</p>}
+                Back
+              </button>
+              <button
+                onClick={() => buildReview(selectedMonth)}
+                disabled={loading}
+                className="text-sm px-4 py-2 rounded-lg font-medium"
+                style={{ backgroundColor: '#6366f1', color: '#fff', opacity: loading ? 0.6 : 1 }}
+              >
+                {loading ? 'Loading…' : 'Continue'}
+              </button>
             </div>
-          )}
+          </div>
+        )}
 
-          {step === 'month-select' && (
-            <div className="p-6 flex flex-col gap-4">
-              <p className="text-sm" style={{ color: '#64748b' }}>
-                This file contains transactions from multiple months. Which month would you like to import?
-              </p>
-              <div className="flex flex-col gap-2">
-                {availableMonths.map(m => (
-                  <label key={m} className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="month"
-                      value={m}
-                      checked={selectedMonth === m}
-                      onChange={() => setSelectedMonth(m)}
-                      className="accent-indigo-500"
-                    />
-                    <span className="text-sm" style={{ color: '#f1f5f9' }}>{monthLabel(m)}</span>
-                  </label>
-                ))}
-              </div>
-              {error && <p className="text-sm" style={{ color: '#ef4444' }}>{error}</p>}
-              <div className="flex gap-3 mt-2">
-                <button
-                  onClick={() => setStep('upload')}
-                  className="text-sm px-4 py-2 rounded-lg border"
-                  style={{ borderColor: '#2a2d3e', color: '#64748b' }}
-                >
-                  Back
-                </button>
-                <button
-                  onClick={() => buildReview(selectedMonth)}
-                  disabled={loading}
-                  className="text-sm px-4 py-2 rounded-lg font-medium"
-                  style={{ backgroundColor: '#6366f1', color: '#fff', opacity: loading ? 0.6 : 1 }}
-                >
-                  {loading ? 'Loading…' : 'Continue'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {step === 'review' && (
-            <ImportReviewScreen
-              rows={reviewRows}
-              goals={goals}
-              obligations={obligations}
-              buckets={buckets}
-              onConfirm={handleConfirm}
-              onBack={() => setStep(availableMonths.length > 1 ? 'month-select' : 'upload')}
-            />
-          )}
-        </div>
+        {/*
+          Review step — ImportReviewScreen returns a React fragment so its
+          two children (scrollable list + footer) are direct flex children
+          of this modal wrapper, giving us the exact 3-part layout:
+            modal header  (flex-shrink-0)
+            scrollable list  (flex-1, overflow-y-auto)
+            confirm footer  (flex-shrink-0)
+        */}
+        {step === 'review' && (
+          <ImportReviewScreen
+            rows={reviewRows}
+            goals={goals}
+            obligations={obligations}
+            buckets={buckets}
+            onConfirm={handleConfirm}
+            onBack={() => setStep(availableMonths.length > 1 ? 'month-select' : 'upload')}
+          />
+        )}
       </div>
     </div>
   );
