@@ -152,7 +152,7 @@ export default function ImportModal({ uid, goals, obligations, categoryRules, on
         </div>
 
         {/* Body */}
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {step === 'upload' && (
             <div className="p-6 flex flex-col items-center gap-4">
               <div
