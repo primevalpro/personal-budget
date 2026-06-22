@@ -16,7 +16,7 @@ import { currentMonth } from '../utils/dateUtils';
 export default function Dashboard({ user }) {
   const uid = user.uid;
   const cm = currentMonth();
-  const [tab, setTab] = useState('budget');
+  const [activePage, setActivePage] = useState('budget');
   const [page, setPage] = useState('overview');
   const [showIncomeModal, setShowIncomeModal] = useState(false);
 
@@ -64,26 +64,16 @@ export default function Dashboard({ user }) {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-      <SummaryBar
-        balance={balance}
-        totalAssigned={totalAssigned}
-        readyToAssign={readyToAssign}
-        monthlyFundingGap={monthlyFundingGap}
-        gapBreakdown={gapBreakdown}
-        onEditBalance={updateBalance}
-        onAddIncome={() => setShowIncomeModal(true)}
-      />
-
-      {/* Top-level tabs: Budget | Transactions */}
+      {/* Top-level tab strip */}
       <div className="flex border-b flex-shrink-0" style={{ borderColor: '#2a2d3e', backgroundColor: '#1a1d27' }}>
         {['budget', 'transactions'].map(t => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => setActivePage(t)}
             className="px-5 py-3 text-sm font-medium capitalize transition-colors"
             style={{
-              color: tab === t ? '#6366f1' : '#64748b',
-              borderBottom: tab === t ? '2px solid #6366f1' : '2px solid transparent',
+              color: activePage === t ? '#6366f1' : '#64748b',
+              borderBottom: activePage === t ? '2px solid #6366f1' : '2px solid transparent',
             }}
           >
             {t === 'budget' ? 'Budget' : 'Transactions'}
@@ -91,48 +81,7 @@ export default function Dashboard({ user }) {
         ))}
       </div>
 
-      {tab === 'budget' && page === 'overview' && (
-        <OverviewPage
-          obligations={obligations}
-          goals={goals}
-          buckets={buckets}
-          cm={cm}
-          income={income}
-          onDeleteIncome={deleteIncome}
-          onGoToPlanner={() => setPage('planner')}
-        />
-      )}
-      {tab === 'budget' && page === 'planner' && (
-        <PlannerPage
-          obligations={obligations}
-          goals={goals}
-          buckets={buckets}
-          cm={cm}
-          obligationSubcats={obligationSubcats}
-          goalSubcats={goalSubcats}
-          bucketSubcats={bucketSubcats}
-          addObligation={addObligation}
-          updateObligation={updateObligation}
-          deleteObligation={deleteObligation}
-          assignObligation={assignObligation}
-          togglePaid={togglePaid}
-          addGoal={addGoal}
-          updateGoal={updateGoal}
-          deleteGoal={deleteGoal}
-          assignGoal={assignGoal}
-          addSpend={addSpend}
-          addBucket={addBucket}
-          updateBucket={updateBucket}
-          deleteBucket={deleteBucket}
-          addFunds={addFunds}
-          withdraw={withdraw}
-          addSubcategory={addSubcategory}
-          updateSubcategory={updateSubcategory}
-          deleteSubcategory={deleteSubcategory}
-          onGoToOverview={() => setPage('overview')}
-        />
-      )}
-      {tab === 'transactions' && (
+      {activePage === 'transactions' ? (
         <TransactionsPage
           uid={uid}
           goals={goals}
@@ -140,13 +89,66 @@ export default function Dashboard({ user }) {
           buckets={buckets}
           categoryRules={categoryRules}
         />
-      )}
+      ) : (
+        <>
+          <SummaryBar
+            balance={balance}
+            totalAssigned={totalAssigned}
+            readyToAssign={readyToAssign}
+            monthlyFundingGap={monthlyFundingGap}
+            gapBreakdown={gapBreakdown}
+            onEditBalance={updateBalance}
+            onAddIncome={() => setShowIncomeModal(true)}
+          />
 
-      {showIncomeModal && (
-        <AddIncomeModal
-          onClose={() => setShowIncomeModal(false)}
-          onAdd={addIncome}
-        />
+          {page === 'overview' ? (
+            <OverviewPage
+              obligations={obligations}
+              goals={goals}
+              buckets={buckets}
+              cm={cm}
+              income={income}
+              onDeleteIncome={deleteIncome}
+              onGoToPlanner={() => setPage('planner')}
+            />
+          ) : (
+            <PlannerPage
+              obligations={obligations}
+              goals={goals}
+              buckets={buckets}
+              cm={cm}
+              obligationSubcats={obligationSubcats}
+              goalSubcats={goalSubcats}
+              bucketSubcats={bucketSubcats}
+              addObligation={addObligation}
+              updateObligation={updateObligation}
+              deleteObligation={deleteObligation}
+              assignObligation={assignObligation}
+              togglePaid={togglePaid}
+              addGoal={addGoal}
+              updateGoal={updateGoal}
+              deleteGoal={deleteGoal}
+              assignGoal={assignGoal}
+              addSpend={addSpend}
+              addBucket={addBucket}
+              updateBucket={updateBucket}
+              deleteBucket={deleteBucket}
+              addFunds={addFunds}
+              withdraw={withdraw}
+              addSubcategory={addSubcategory}
+              updateSubcategory={updateSubcategory}
+              deleteSubcategory={deleteSubcategory}
+              onGoToOverview={() => setPage('overview')}
+            />
+          )}
+
+          {showIncomeModal && (
+            <AddIncomeModal
+              onClose={() => setShowIncomeModal(false)}
+              onAdd={addIncome}
+            />
+          )}
+        </>
       )}
     </div>
   );
