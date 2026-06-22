@@ -43,9 +43,13 @@ export default function GoalItem({ uid, goal, onUpdate, onDelete, onAssign, onAd
   const isOverspent = assigned > 0 && spent > assigned;
   const isFullySpent = assigned > 0 && spent > 0 && spent === assigned;
 
-  // Bar widths as percentages of target
+  // Bar widths as percentages of target (fall back to spent as 100% if target is 0)
   let spentPct = 0, remainingPct = 0, overspentPct = 0;
-  if (target > 0 && assigned > 0) {
+  const barDenom = target > 0 ? target : (spent > 0 ? spent : 1);
+
+  if (spent > 0 && assigned === 0) {
+    overspentPct = Math.min((spent / barDenom) * 100, 100);
+  } else if (assigned > 0) {
     if (isOverspent) {
       spentPct = Math.min((assigned / target) * 100, 100);
       overspentPct = Math.min(((spent - assigned) / target) * 100, 100 - spentPct);
