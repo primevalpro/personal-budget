@@ -24,7 +24,7 @@ function TrashIcon() {
 
 function SubcategoryBlock({
   uid, subcat, items, allSubcats,
-  onAdd, onUpdateItem, onDeleteItem, onAddFunds, onWithdraw, onFullyFund, onSetMonthlyAssigned,
+  onAdd, onUpdateItem, onDeleteItem, onAddFunds, onUnassign, onWithdraw, onFullyFund, onSetMonthlyAssigned,
   onUpdateSubcat, onDeleteSubcat,
 }) {
   const [showAdd, setShowAdd] = useState(false);
@@ -123,6 +123,7 @@ function SubcategoryBlock({
               onUpdate={onUpdateItem}
               onDelete={onDeleteItem}
               onAddFunds={onAddFunds}
+              onUnassign={onUnassign}
               onWithdraw={onWithdraw}
               onFullyFund={onFullyFund}
               onSetMonthlyAssigned={onSetMonthlyAssigned}
@@ -181,7 +182,7 @@ function SubcategoryBlock({
 
 export default function BucketsSection({
   uid, buckets, subcategories,
-  addBucket, updateBucket, deleteBucket, addFunds, withdraw, fullyFundBucket, setMonthlyAssigned,
+  addBucket, updateBucket, deleteBucket, addFunds, unassignFunds, withdraw, fullyFundBucket, setMonthlyAssigned,
   addSubcategory, updateSubcategory, deleteSubcategory,
 }) {
   const [showNewSubcat, setShowNewSubcat] = useState(false);
@@ -225,6 +226,7 @@ export default function BucketsSection({
             onUpdateItem={updateBucket}
             onDeleteItem={deleteBucket}
             onAddFunds={addFunds}
+            onUnassign={unassignFunds}
             onWithdraw={withdraw}
             onFullyFund={fullyFundBucket}
             onSetMonthlyAssigned={setMonthlyAssigned}
@@ -244,6 +246,7 @@ export default function BucketsSection({
             onUpdateItem={updateBucket}
             onDeleteItem={deleteBucket}
             onAddFunds={addFunds}
+            onUnassign={unassignFunds}
             onWithdraw={withdraw}
             onFullyFund={fullyFundBucket}
             onSetMonthlyAssigned={setMonthlyAssigned}

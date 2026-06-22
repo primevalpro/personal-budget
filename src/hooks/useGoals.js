@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
-  collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
+  collection, onSnapshot, addDoc, updateDoc, doc,
   query, where, getDocs, writeBatch, serverTimestamp, increment,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { currentMonth, prevMonth } from '../utils/dateUtils';
+import { deleteWithOrphanCleanup } from '../utils/categoryBatch';
 
 export function useGoals(uid) {
   const [goals, setGoals] = useState([]);
@@ -70,7 +71,7 @@ export function useGoals(uid) {
   }
 
   async function deleteGoal(id) {
-    await deleteDoc(doc(db, 'users', uid, 'goals', id));
+    await deleteWithOrphanCleanup(uid, 'goals', 'goal', id);
   }
 
   async function assignGoal(id, _currentAssigned, newAssigned) {

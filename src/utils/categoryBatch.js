@@ -1,4 +1,7 @@
-import { doc, collection, increment, serverTimestamp, writeBatch } from 'firebase/firestore';
+import {
+  doc, collection, increment, serverTimestamp, writeBatch,
+  getDoc, getDocs, query, where,
+} from 'firebase/firestore';
 import { db } from '../firebase';
 import { currentMonth } from './dateUtils';
 
@@ -24,34 +27,33 @@ export function applyOne(batch, uid, categoryType, categoryId, amount, obligatio
   }
 }
 
-// Reverse a category effect on an existing batch (for edit/delete)
-export function reverseOne(batch, uid, tx) {
+// Reverse a category effect on an existing batch — checks existence to skip stale refs
+export async function reverseOne(batch, uid, tx) {
   if (!tx.categoryType || tx.categoryType === 'skipped' || !tx.categoryId) return;
+
+  let docRef;
+  if (tx.categoryType === 'goal') docRef = doc(db, 'users', uid, 'goals', tx.categoryId);
+  else if (tx.categoryType === 'obligation') docRef = doc(db, 'users', uid, 'obligations', tx.categoryId);
+  else if (tx.categoryType === 'bucket') docRef = doc(db, 'users', uid, 'buckets', tx.categoryId);
+  else return;
+
+  const snap = await getDoc(docRef);
+  if (!snap.exists()) return; // old doc gone — skip reversal silently
+
   const abs = Math.abs(tx.amount);
   if (tx.categoryType === 'goal') {
-    batch.update(doc(db, 'users', uid, 'goals', tx.categoryId), {
-      spentAmount: increment(-abs),
-    });
+    batch.update(docRef, { spentAmount: increment(-abs) });
   } else if (tx.categoryType === 'obligation') {
-    batch.update(doc(db, 'users', uid, 'obligations', tx.categoryId), {
-      assignedAmount: increment(-abs),
-      paidMonth: '',
-    });
+    batch.update(docRef, { assignedAmount: increment(-abs), paidMonth: '' });
   } else if (tx.categoryType === 'bucket') {
-    batch.update(doc(db, 'users', uid, 'buckets', tx.categoryId), {
-      currentAmount: increment(abs),
-      txSpend: increment(-abs),
-    });
+    batch.update(docRef, { currentAmount: increment(abs), txSpend: increment(-abs) });
   }
 }
 
 // Build and return a batch for a full CSV import
-// importRows: array of { date, description, originalDescription, amount, month,
-//                        categoryType, categoryId, categoryName }
 export function buildImportBatch(uid, importRows, obligations) {
   const batch = writeBatch(db);
 
-  // Accumulate category totals so each doc is updated once per batch
   const goalTotals = new Map();
   const bucketTotals = new Map();
   const obligationTotals = new Map();
@@ -94,4 +96,39 @@ export function buildImportBatch(uid, importRows, obligations) {
   }
 
   return batch;
+}
+
+// Delete a category document and null-out all its orphaned transactions.
+// Splits into multiple 499-op batches if needed.
+export async function deleteWithOrphanCleanup(uid, collectionName, categoryType, id) {
+  const snap = await getDocs(
+    query(collection(db, 'users', uid, 'transactions'), where('categoryId', '==', id))
+  );
+  const orphans = snap.docs.filter(d => d.data().categoryType === categoryType);
+
+  const BATCH_LIMIT = 499;
+  let currentBatch = writeBatch(db);
+  let opsInBatch = 0;
+  const batches = [currentBatch];
+
+  currentBatch.delete(doc(db, 'users', uid, collectionName, id));
+  opsInBatch++;
+
+  for (const orphanDoc of orphans) {
+    if (opsInBatch >= BATCH_LIMIT) {
+      currentBatch = writeBatch(db);
+      opsInBatch = 0;
+      batches.push(currentBatch);
+    }
+    currentBatch.update(doc(db, 'users', uid, 'transactions', orphanDoc.id), {
+      categoryType: null,
+      categoryId: null,
+      categoryName: null,
+    });
+    opsInBatch++;
+  }
+
+  for (const batch of batches) {
+    await batch.commit();
+  }
 }

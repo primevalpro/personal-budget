@@ -93,9 +93,21 @@ export default function TransactionsPage({ uid, goals, obligations, buckets, cat
   const [showAddTx, setShowAddTx] = useState(false);
   const { transactions, loading } = useTransactions(uid, month);
 
-  const uncategorized = transactions.filter(tx => tx.categoryType === null);
+  // Detect orphaned transactions — category no longer exists in loaded data
+  const goalIds = new Set(goals.map(g => g.id));
+  const obIds = new Set(obligations.map(o => o.id));
+  const bucketIds = new Set(buckets.map(b => b.id));
+  function isOrphaned(tx) {
+    if (!tx.categoryType || tx.categoryType === 'skipped') return false;
+    if (tx.categoryType === 'goal') return !goalIds.has(tx.categoryId);
+    if (tx.categoryType === 'obligation') return !obIds.has(tx.categoryId);
+    if (tx.categoryType === 'bucket') return !bucketIds.has(tx.categoryId);
+    return false;
+  }
+
+  const uncategorized = transactions.filter(tx => tx.categoryType === null || isOrphaned(tx));
   const skipped = transactions.filter(tx => tx.categoryType === 'skipped');
-  const categorized = transactions.filter(tx => tx.categoryType && tx.categoryType !== 'skipped');
+  const categorized = transactions.filter(tx => tx.categoryType && tx.categoryType !== 'skipped' && !isOrphaned(tx));
 
   const nonSkipped = transactions.filter(tx => tx.categoryType !== 'skipped');
   const totalSpent = nonSkipped.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
@@ -116,7 +128,7 @@ export default function TransactionsPage({ uid, goals, obligations, buckets, cat
 
   async function handleEdit(tx, newDescription, newCategory) {
     const batch = writeBatch(db);
-    reverseOne(batch, uid, tx);
+    await reverseOne(batch, uid, tx);
     batch.update(doc(db, 'users', uid, 'transactions', tx.id), {
       description: newDescription,
       categoryType: newCategory?.categoryType ?? null,
@@ -131,7 +143,7 @@ export default function TransactionsPage({ uid, goals, obligations, buckets, cat
 
   async function handleDelete(tx) {
     const batch = writeBatch(db);
-    reverseOne(batch, uid, tx);
+    await reverseOne(batch, uid, tx);
     batch.delete(doc(db, 'users', uid, 'transactions', tx.id));
     await batch.commit();
   }

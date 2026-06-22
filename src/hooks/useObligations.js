@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
-  collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
+  collection, onSnapshot, addDoc, updateDoc, doc,
   query, orderBy, getDocs, getDoc, setDoc, serverTimestamp, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { currentMonth } from '../utils/dateUtils';
+import { deleteWithOrphanCleanup } from '../utils/categoryBatch';
 
 export function useObligations(uid) {
   const [obligations, setObligations] = useState([]);
@@ -77,7 +78,7 @@ export function useObligations(uid) {
   }
 
   async function deleteObligation(id) {
-    await deleteDoc(doc(db, 'users', uid, 'obligations', id));
+    await deleteWithOrphanCleanup(uid, 'obligations', 'obligation', id);
   }
 
   // Sets absolute assignedAmount; clears assignedMonth if amount is 0

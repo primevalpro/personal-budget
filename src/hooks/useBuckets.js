@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
-  collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc,
+  collection, onSnapshot, addDoc, updateDoc, doc,
   query, orderBy, serverTimestamp, increment,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { currentMonth } from '../utils/dateUtils';
+import { deleteWithOrphanCleanup } from '../utils/categoryBatch';
 
 export function useBuckets(uid) {
   const [buckets, setBuckets] = useState([]);
@@ -50,7 +51,7 @@ export function useBuckets(uid) {
   }
 
   async function deleteBucket(id) {
-    await deleteDoc(doc(db, 'users', uid, 'buckets', id));
+    await deleteWithOrphanCleanup(uid, 'buckets', 'bucket', id);
   }
 
   // No balance change — currentAmount increase is subtracted from RTA via the formula
@@ -58,6 +59,17 @@ export function useBuckets(uid) {
     await updateDoc(doc(db, 'users', uid, 'buckets', id), {
       currentAmount: increment(Number(amount)),
       monthlyAssigned: (currentMonthlyAssigned || 0) + Number(amount),
+      monthlyAssignedMonth: currentMonth(),
+    });
+  }
+
+  // Remove previously assigned funds; currentAmount can go negative, monthlyAssigned floors at 0
+  async function unassignFunds(id, amount, currentMonthlyAssigned) {
+    const capped = Math.min(Number(amount), Math.max(0, currentMonthlyAssigned || 0));
+    if (capped <= 0) return;
+    await updateDoc(doc(db, 'users', uid, 'buckets', id), {
+      currentAmount: increment(-capped),
+      monthlyAssigned: Math.max(0, (currentMonthlyAssigned || 0) - capped),
       monthlyAssignedMonth: currentMonth(),
     });
   }
@@ -90,5 +102,9 @@ export function useBuckets(uid) {
     });
   }
 
-  return { buckets, loading, addBucket, updateBucket, deleteBucket, addFunds, withdraw, fullyFundBucket, setMonthlyAssigned };
+  return {
+    buckets, loading,
+    addBucket, updateBucket, deleteBucket,
+    addFunds, unassignFunds, withdraw, fullyFundBucket, setMonthlyAssigned,
+  };
 }

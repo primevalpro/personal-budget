@@ -129,19 +129,33 @@ export function CategorizedRow({ tx, goals, obligations, buckets, onEdit, onDele
   const [editDesc, setEditDesc] = useState(tx.description || '');
   const [editCatVal, setEditCatVal] = useState(encodeCategoryValue(tx));
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
   async function handleSaveEdit() {
     const category = resolveCategoryValue(editCatVal, goals, obligations, buckets);
     setSaving(true);
-    await onEdit(tx, editDesc.trim() || tx.description, category);
-    setSaving(false);
-    setMode('display');
+    setError(null);
+    try {
+      await onEdit(tx, editDesc.trim() || tx.description, category);
+      setMode('display');
+    } catch (err) {
+      console.error('Edit failed:', err);
+      setError('Save failed — try again');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleDelete() {
     setSaving(true);
-    await onDelete(tx);
-    setSaving(false);
+    setError(null);
+    try {
+      await onDelete(tx);
+    } catch (err) {
+      console.error('Delete failed:', err);
+      setError('Delete failed — try again');
+      setSaving(false);
+    }
   }
 
   function cancelEdit() {
@@ -152,25 +166,28 @@ export function CategorizedRow({ tx, goals, obligations, buckets, onEdit, onDele
 
   if (mode === 'delete') {
     return (
-      <div className="flex items-center justify-between gap-3 py-3 px-3">
-        <span className="text-sm flex-1 min-w-0 truncate" style={{ color: '#f1f5f9' }}>
-          Delete <span className="font-semibold">{tx.description}</span>?
-        </span>
-        <button
-          onClick={handleDelete}
-          disabled={saving}
-          className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
-          style={{ backgroundColor: '#ef4444', color: '#f1f5f9' }}
-        >
-          Delete
-        </button>
-        <button
-          onClick={() => setMode('display')}
-          className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs border"
-          style={{ borderColor: '#2a2d3e', color: '#64748b' }}
-        >
-          Cancel
-        </button>
+      <div className="flex flex-col gap-1 py-3 px-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm flex-1 min-w-0 truncate" style={{ color: '#f1f5f9' }}>
+            Delete <span className="font-semibold">{tx.description}</span>?
+          </span>
+          <button
+            onClick={handleDelete}
+            disabled={saving}
+            className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
+            style={{ backgroundColor: '#ef4444', color: '#f1f5f9' }}
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => { setMode('display'); setError(null); }}
+            className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs border"
+            style={{ borderColor: '#2a2d3e', color: '#64748b' }}
+          >
+            Cancel
+          </button>
+        </div>
+        {error && <p className="text-xs" style={{ color: '#ef4444' }}>{error}</p>}
       </div>
     );
   }
@@ -217,6 +234,7 @@ export function CategorizedRow({ tx, goals, obligations, buckets, onEdit, onDele
             ✕
           </button>
         </div>
+        {error && <p className="text-xs" style={{ color: '#ef4444' }}>{error}</p>}
       </div>
     );
   }

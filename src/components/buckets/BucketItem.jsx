@@ -23,8 +23,8 @@ function TrashIcon() {
   );
 }
 
-export default function BucketItem({ uid, bucket, onUpdate, onDelete, onAddFunds, onWithdraw, subcategories }) {
-  const [mode, setMode] = useState(null); // null | 'assign' | 'withdraw' | 'edit' | 'delete'
+export default function BucketItem({ uid, bucket, onUpdate, onDelete, onAddFunds, onUnassign, onWithdraw, subcategories }) {
+  const [mode, setMode] = useState(null); // null | 'assign' | 'unassign' | 'withdraw' | 'edit' | 'delete'
   const [recalculating, setRecalculating] = useState(false);
   const [inputAmount, setInputAmount] = useState('');
   const [editName, setEditName] = useState(bucket.name);
@@ -73,6 +73,13 @@ export default function BucketItem({ uid, bucket, onUpdate, onDelete, onAddFunds
     const amount = Number(inputAmount);
     if (isNaN(amount) || amount <= 0) return;
     await onAddFunds(bucket.id, amount, monthlyAssigned);
+    reset();
+  }
+
+  async function handleUnassign() {
+    const amount = Number(inputAmount);
+    if (isNaN(amount) || amount <= 0) return;
+    await onUnassign(bucket.id, amount, monthlyAssigned);
     reset();
   }
 
@@ -250,9 +257,9 @@ export default function BucketItem({ uid, bucket, onUpdate, onDelete, onAddFunds
         </div>
       )}
 
-      {/* Assign / Withdraw buttons */}
+      {/* Assign / Unassign / Withdraw buttons */}
       {mode === null && (
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setMode('assign')}
             className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-opacity hover:opacity-90"
@@ -260,9 +267,18 @@ export default function BucketItem({ uid, bucket, onUpdate, onDelete, onAddFunds
           >
             + Assign
           </button>
+          {monthlyAssigned > 0 && (
+            <button
+              onClick={() => setMode('unassign')}
+              className="py-1.5 px-3 rounded-lg text-xs font-medium border transition-opacity hover:opacity-80"
+              style={{ borderColor: '#f59e0b44', color: '#f59e0b' }}
+            >
+              Remove funds
+            </button>
+          )}
           <button
             onClick={() => setMode('withdraw')}
-            className="flex-1 py-1.5 rounded-lg text-xs font-medium border transition-opacity hover:opacity-80"
+            className="py-1.5 px-3 rounded-lg text-xs font-medium border transition-opacity hover:opacity-80"
             style={{ borderColor: '#2a2d3e', color: '#64748b' }}
           >
             Withdraw
@@ -270,24 +286,40 @@ export default function BucketItem({ uid, bucket, onUpdate, onDelete, onAddFunds
         </div>
       )}
 
-      {(mode === 'assign' || mode === 'withdraw') && (
+      {(mode === 'assign' || mode === 'unassign' || mode === 'withdraw') && (
         <div className="flex gap-2">
           <input
             className="flex-1 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums outline-none"
             style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
             type="number" min="0.01" step="0.01"
-            placeholder={mode === 'assign' ? 'Amount to assign' : 'Amount to withdraw'}
+            max={mode === 'unassign' ? monthlyAssigned : undefined}
+            placeholder={
+              mode === 'assign' ? 'Amount to assign' :
+              mode === 'unassign' ? `Up to ${formatCurrency(monthlyAssigned)}` :
+              'Amount to withdraw'
+            }
             value={inputAmount}
             onChange={e => setInputAmount(e.target.value)}
-            onKeyDown={amountKeyDown(mode === 'assign' ? handleAssign : handleWithdraw)}
+            onKeyDown={amountKeyDown(
+              mode === 'assign' ? handleAssign :
+              mode === 'unassign' ? handleUnassign :
+              handleWithdraw
+            )}
             autoFocus
           />
           <button
-            onClick={mode === 'assign' ? handleAssign : handleWithdraw}
+            onClick={
+              mode === 'assign' ? handleAssign :
+              mode === 'unassign' ? handleUnassign :
+              handleWithdraw
+            }
             className="px-3 py-1.5 rounded-lg text-sm font-medium"
-            style={{ backgroundColor: mode === 'assign' ? '#6366f1' : '#374151', color: '#f1f5f9' }}
+            style={{
+              backgroundColor: mode === 'assign' ? '#6366f1' : mode === 'unassign' ? '#78350f' : '#374151',
+              color: '#f1f5f9',
+            }}
           >
-            {mode === 'assign' ? 'Assign' : 'Withdraw'}
+            {mode === 'assign' ? 'Assign' : mode === 'unassign' ? 'Remove' : 'Withdraw'}
           </button>
           <button onClick={reset} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
         </div>
