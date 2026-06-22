@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { buildImportBatch } from '../../utils/categoryBatch';
+import { buildImportBatch, applyOne } from '../../utils/categoryBatch';
 import { monthLabel } from '../../utils/dateUtils';
 
 // ── CSV parsing ────────────────────────────────────────────────
@@ -119,37 +119,55 @@ export default function ImportModal({ uid, goals, obligations, buckets, category
   }
 
   async function runImport(rows, month) {
+    console.log('[Import] runImport called — month:', month);
     setStage('importing');
     try {
-      // Fetch existing transactions for this month to detect duplicates
+      // Fetch rules fresh from Firestore — never rely on the prop which may be
+      // stale or empty if the onSnapshot hasn't resolved yet at call time.
+      const rulesSnap = await getDocs(collection(db, 'users', uid, 'categoryRules'));
+      const freshRules = rulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      console.log('[Import] fresh rules from Firestore:', freshRules.length, freshRules.map(r => r.keyword));
+
+      // Fetch existing transactions for this month
       const existingSnap = await getDocs(
         query(collection(db, 'users', uid, 'transactions'), where('month', '==', month))
       );
-      const existingKeys = new Set(
+      const existingByKey = new Map(
         existingSnap.docs.map(d => {
           const data = d.data();
-          return `${data.date}|${data.originalDescription}|${data.amount}`;
+          return [`${data.date}|${data.originalDescription}|${data.amount}`, { id: d.id, ...data }];
         })
       );
+      console.log('[Import] existing transactions this month:', existingByKey.size);
 
-      // Filter to selected month, remove duplicates
-      let filtered = rows
-        .filter(r => r.month === month)
-        .filter(r => !existingKeys.has(`${r.date}|${r.originalDescription}|${r.amount}`));
+      // Filter to selected month; split into truly-new vs existing-but-null
+      const monthRows = rows.filter(r => r.month === month);
+      const newRows = monthRows.filter(r => !existingByKey.has(`${r.date}|${r.originalDescription}|${r.amount}`));
+      const nullExisting = monthRows
+        .filter(r => {
+          const ex = existingByKey.get(`${r.date}|${r.originalDescription}|${r.amount}`);
+          return ex && ex.categoryType === null;
+        })
+        .map(r => ({ ...r, existingId: existingByKey.get(`${r.date}|${r.originalDescription}|${r.amount}`).id }));
 
-      if (filtered.length === 0) {
+      console.log('[Import] new rows:', newRows.length, '| previously-null rows eligible for re-categorization:', nullExisting.length);
+
+      if (newRows.length === 0 && nullExisting.length === 0) {
+        console.log('[Import] nothing to do — closing');
         onClose();
         return;
       }
 
-      // Classify each row
-      const importRows = filtered.map(row => {
+      // Classify new rows
+      const importRows = newRows.map(row => {
         const skipReason = getSkipReason(row);
         if (skipReason) {
+          console.log('[Import] skip:', row.originalDescription, '—', skipReason);
           return { ...row, categoryType: 'skipped', categoryId: null, categoryName: null };
         }
-        const match = findRuleMatch(row, categoryRules);
+        const match = findRuleMatch(row, freshRules);
         if (match && match.categoryType && match.categoryId) {
+          console.log('[Import] rule match:', row.originalDescription, '→', match.categoryType, '/', match.categoryName);
           return {
             ...row,
             categoryType: match.categoryType,
@@ -157,14 +175,35 @@ export default function ImportModal({ uid, goals, obligations, buckets, category
             categoryName: match.categoryName || null,
           };
         }
+        console.log('[Import] no rule match for:', row.originalDescription);
         return { ...row, categoryType: null, categoryId: null, categoryName: null };
       });
 
+      // Build the batch for new rows
       const batch = buildImportBatch(uid, importRows, obligations);
+
+      // Re-categorize any existing null transactions that now match a rule
+      for (const row of nullExisting) {
+        const match = findRuleMatch(row, freshRules);
+        if (match && match.categoryType && match.categoryId) {
+          console.log('[Import] re-categorizing existing null tx:', row.originalDescription, '→', match.categoryType, '/', match.categoryName);
+          batch.update(doc(db, 'users', uid, 'transactions', row.existingId), {
+            categoryType: match.categoryType,
+            categoryId: match.categoryId,
+            categoryName: match.categoryName || null,
+          });
+          applyOne(batch, uid, match.categoryType, match.categoryId, row.amount, obligations);
+        } else {
+          console.log('[Import] existing null tx still unmatched:', row.originalDescription);
+        }
+      }
+
+      console.log('[Import] committing batch…');
       await batch.commit();
+      console.log('[Import] batch committed — done');
       onClose();
     } catch (err) {
-      console.error('Import failed:', err);
+      console.error('[Import] failed:', err);
       setError('Import failed. Please try again.');
       setStage('idle');
     }
