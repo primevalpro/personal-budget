@@ -25,13 +25,8 @@ function parseCSVLine(line) {
   return cols;
 }
 
-function parseCSVDate(raw) {
-  const m = raw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!m) return '';
-  const [, mo, dd, yyyy] = m;
-  return `${yyyy}-${mo.padStart(2, '0')}-${dd.padStart(2, '0')}`;
-}
-
+// Columns: Date,Description,Original Description,Category,Type,Amount
+// Date format: YYYY-MM-DD  |  Amount: negative = debit
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return [];
@@ -47,8 +42,8 @@ function parseCSV(text) {
 
   return lines.slice(1).flatMap(line => {
     const cols = parseCSVLine(line);
-    const date = parseCSVDate(cols[dateIdx] ?? '');
-    if (!date) return [];
+    const date = (cols[dateIdx] ?? '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
     const amount = parseFloat((cols[amtIdx] ?? '').trim());
     if (isNaN(amount)) return [];
     return [{

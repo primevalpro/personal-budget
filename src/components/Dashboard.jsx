@@ -16,6 +16,7 @@ import { currentMonth } from '../utils/dateUtils';
 export default function Dashboard({ user }) {
   const uid = user.uid;
   const cm = currentMonth();
+  const [tab, setTab] = useState('budget');
   const [page, setPage] = useState('overview');
   const [showIncomeModal, setShowIncomeModal] = useState(false);
 
@@ -61,12 +62,6 @@ export default function Dashboard({ user }) {
   const goalSubcats = subcategories.filter(s => s.metaCategory === 'goals');
   const bucketSubcats = subcategories.filter(s => s.metaCategory === 'buckets');
 
-  const NAV = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'planner', label: 'Planner' },
-    { id: 'transactions', label: 'Transactions' },
-  ];
-
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
       <SummaryBar
@@ -79,24 +74,24 @@ export default function Dashboard({ user }) {
         onAddIncome={() => setShowIncomeModal(true)}
       />
 
-      {/* Nav tabs */}
+      {/* Top-level tabs: Budget | Transactions */}
       <div className="flex border-b flex-shrink-0" style={{ borderColor: '#2a2d3e', backgroundColor: '#1a1d27' }}>
-        {NAV.map(tab => (
+        {['budget', 'transactions'].map(t => (
           <button
-            key={tab.id}
-            onClick={() => setPage(tab.id)}
-            className="px-5 py-3 text-sm font-medium transition-colors"
+            key={t}
+            onClick={() => setTab(t)}
+            className="px-5 py-3 text-sm font-medium capitalize transition-colors"
             style={{
-              color: page === tab.id ? '#6366f1' : '#64748b',
-              borderBottom: page === tab.id ? '2px solid #6366f1' : '2px solid transparent',
+              color: tab === t ? '#6366f1' : '#64748b',
+              borderBottom: tab === t ? '2px solid #6366f1' : '2px solid transparent',
             }}
           >
-            {tab.label}
+            {t === 'budget' ? 'Budget' : 'Transactions'}
           </button>
         ))}
       </div>
 
-      {page === 'overview' && (
+      {tab === 'budget' && page === 'overview' && (
         <OverviewPage
           obligations={obligations}
           goals={goals}
@@ -107,7 +102,7 @@ export default function Dashboard({ user }) {
           onGoToPlanner={() => setPage('planner')}
         />
       )}
-      {page === 'planner' && (
+      {tab === 'budget' && page === 'planner' && (
         <PlannerPage
           obligations={obligations}
           goals={goals}
@@ -137,7 +132,7 @@ export default function Dashboard({ user }) {
           onGoToOverview={() => setPage('overview')}
         />
       )}
-      {page === 'transactions' && (
+      {tab === 'transactions' && (
         <TransactionsPage
           uid={uid}
           goals={goals}
