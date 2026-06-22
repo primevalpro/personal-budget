@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
-  collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp,
+  collection, onSnapshot, addDoc, deleteDoc, doc,
+  query, orderBy, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -9,15 +10,18 @@ export function useCategoryRules(uid) {
 
   useEffect(() => {
     if (!uid) return;
-    return onSnapshot(
+    const q = query(
       collection(db, 'users', uid, 'categoryRules'),
-      snap => setRules(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      orderBy('createdAt', 'asc'),
     );
+    return onSnapshot(q, snap => {
+      setRules(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
   }, [uid]);
 
   async function addRule(keyword, categoryType, categoryId, categoryName) {
     await addDoc(collection(db, 'users', uid, 'categoryRules'), {
-      keyword,
+      keyword: keyword.toLowerCase().trim(),
       categoryType,
       categoryId,
       categoryName,

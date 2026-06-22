@@ -5,15 +5,18 @@ import { useObligations } from '../hooks/useObligations';
 import { useGoals } from '../hooks/useGoals';
 import { useBuckets } from '../hooks/useBuckets';
 import { useSubcategories } from '../hooks/useSubcategories';
+import { useCategoryRules } from '../hooks/useCategoryRules';
 import SummaryBar from './SummaryBar';
 import AddIncomeModal from './AddIncomeModal';
 import OverviewPage from '../pages/OverviewPage';
 import PlannerPage from '../pages/PlannerPage';
+import TransactionsPage from '../pages/TransactionsPage';
 import { currentMonth } from '../utils/dateUtils';
 
 export default function Dashboard({ user }) {
   const uid = user.uid;
   const cm = currentMonth();
+  const [page, setPage] = useState('overview');
   const [showIncomeModal, setShowIncomeModal] = useState(false);
 
   const { balance, updateBalance } = useBudget(uid);
@@ -27,10 +30,11 @@ export default function Dashboard({ user }) {
     addGoal, updateGoal, deleteGoal, assignGoal, addSpend,
   } = useGoals(uid);
   const {
-    buckets, loading: bucketsLoading,
-    addBucket, updateBucket, deleteBucket, addFunds, withdraw, fullyFundBucket, setMonthlyAssigned,
+    buckets,
+    addBucket, updateBucket, deleteBucket, addFunds, withdraw,
   } = useBuckets(uid);
   const { subcategories, addSubcategory, updateSubcategory, deleteSubcategory } = useSubcategories(uid);
+  const { rules: categoryRules } = useCategoryRules(uid);
 
   // Derived values — same formulas as before, never stored
   const assignedObligations = obligations
@@ -57,6 +61,12 @@ export default function Dashboard({ user }) {
   const goalSubcats = subcategories.filter(s => s.metaCategory === 'goals');
   const bucketSubcats = subcategories.filter(s => s.metaCategory === 'buckets');
 
+  const NAV = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'planner', label: 'Planner' },
+    { id: 'transactions', label: 'Transactions' },
+  ];
+
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
       <SummaryBar
@@ -69,7 +79,24 @@ export default function Dashboard({ user }) {
         onAddIncome={() => setShowIncomeModal(true)}
       />
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      {/* Nav tabs */}
+      <div className="flex border-b flex-shrink-0" style={{ borderColor: '#2a2d3e', backgroundColor: '#1a1d27' }}>
+        {NAV.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setPage(tab.id)}
+            className="px-5 py-3 text-sm font-medium transition-colors"
+            style={{
+              color: page === tab.id ? '#6366f1' : '#64748b',
+              borderBottom: page === tab.id ? '2px solid #6366f1' : '2px solid transparent',
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {page === 'overview' && (
         <OverviewPage
           obligations={obligations}
           goals={goals}
@@ -77,7 +104,10 @@ export default function Dashboard({ user }) {
           cm={cm}
           income={income}
           onDeleteIncome={deleteIncome}
+          onGoToPlanner={() => setPage('planner')}
         />
+      )}
+      {page === 'planner' && (
         <PlannerPage
           obligations={obligations}
           goals={goals}
@@ -101,13 +131,21 @@ export default function Dashboard({ user }) {
           deleteBucket={deleteBucket}
           addFunds={addFunds}
           withdraw={withdraw}
-          fullyFundBucket={fullyFundBucket}
-          setMonthlyAssigned={setMonthlyAssigned}
           addSubcategory={addSubcategory}
           updateSubcategory={updateSubcategory}
           deleteSubcategory={deleteSubcategory}
+          onGoToOverview={() => setPage('overview')}
         />
-      </div>
+      )}
+      {page === 'transactions' && (
+        <TransactionsPage
+          uid={uid}
+          goals={goals}
+          obligations={obligations}
+          buckets={buckets}
+          categoryRules={categoryRules}
+        />
+      )}
 
       {showIncomeModal && (
         <AddIncomeModal

@@ -1,240 +1,251 @@
-import { useState, useRef } from 'react';
+import { useRef, useState } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../firebase';
-import ImportReviewScreen from './ImportReviewScreen';
+import { buildImportBatch } from '../../utils/categoryBatch';
 import { monthLabel } from '../../utils/dateUtils';
 
-function parseCSVRow(line) {
-  const result = [];
-  let current = '';
+// ── CSV parsing ────────────────────────────────────────────────
+
+function parseCSVLine(line) {
+  const cols = [];
+  let cur = '';
   let inQuotes = false;
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
     if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+      if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
       else inQuotes = !inQuotes;
     } else if (ch === ',' && !inQuotes) {
-      result.push(current);
-      current = '';
+      cols.push(cur); cur = '';
     } else {
-      current += ch;
+      cur += ch;
     }
   }
-  result.push(current);
-  return result;
+  cols.push(cur);
+  return cols;
+}
+
+function parseCSVDate(raw) {
+  const m = raw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return '';
+  const [, mo, dd, yyyy] = m;
+  return `${yyyy}-${mo.padStart(2, '0')}-${dd.padStart(2, '0')}`;
 }
 
 function parseCSV(text) {
-  const clean = text.replace(/^﻿/, '');
-  const lines = clean.split('\n').map(l => l.trim()).filter(Boolean);
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return [];
-  const headers = parseCSVRow(lines[0]).map(h => h.trim());
-  return lines.slice(1).map(line => {
-    const vals = parseCSVRow(line);
-    return Object.fromEntries(headers.map((h, i) => [h, (vals[i] ?? '').trim()]));
+
+  const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
+  const dateIdx = headers.indexOf('date');
+  const descIdx = headers.indexOf('description');
+  const origIdx = headers.indexOf('original description');
+  const catIdx = headers.indexOf('category');
+  const amtIdx = headers.indexOf('amount');
+
+  if (dateIdx === -1 || amtIdx === -1) return [];
+
+  return lines.slice(1).flatMap(line => {
+    const cols = parseCSVLine(line);
+    const date = parseCSVDate(cols[dateIdx] ?? '');
+    if (!date) return [];
+    const amount = parseFloat((cols[amtIdx] ?? '').trim());
+    if (isNaN(amount)) return [];
+    return [{
+      date,
+      month: date.slice(0, 7),
+      description: cols[descIdx]?.trim() ?? '',
+      originalDescription: cols[origIdx]?.trim() ?? cols[descIdx]?.trim() ?? '',
+      category: cols[catIdx]?.trim() ?? '',
+      amount,
+    }];
   });
 }
 
-function toISODate(mmddyyyy) {
-  const [m, d, y] = mmddyyyy.split('/');
-  if (!y) return mmddyyyy;
-  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+// ── Classification helpers ─────────────────────────────────────
+
+function getSkipReason(row) {
+  const desc = row.originalDescription.toUpperCase();
+  if (desc.includes('USAA FUNDS TRANSFER')) return 'Internal transfer';
+  if (desc.includes('BRANCHAPP')) return 'Income — already logged';
+  if (row.category === 'Credit Card Payment') return 'Credit card payment';
+  if (row.amount > 0) return 'Income / credit';
+  return null;
 }
 
-function toMonth(isoDate) {
-  return isoDate.slice(0, 7);
+function findRuleMatch(row, rules) {
+  const desc = row.originalDescription.toLowerCase();
+  for (const rule of rules) {
+    if (desc.includes(rule.keyword.toLowerCase())) return rule;
+  }
+  return null;
 }
 
-const AUTO_SKIP = [
-  { test: r => r.originalDescription.toUpperCase().includes('USAA FUNDS TRANSFER'), reason: 'Internal transfer' },
-  { test: r => r.originalDescription.toUpperCase().includes('BRANCHAPP'), reason: 'Income — already logged' },
-  { test: r => r.category === 'Credit Card Payment', reason: 'Credit card payment' },
-  { test: r => r.amount > 0, reason: 'Income / credit' },
-];
+// ── Component ──────────────────────────────────────────────────
 
-export default function ImportModal({ uid, goals, obligations, buckets, categoryRules, onImport, onClose }) {
-  const [step, setStep] = useState('upload');
+export default function ImportModal({ uid, goals, obligations, buckets, categoryRules, onClose }) {
+  const fileRef = useRef(null);
+  const [stage, setStage] = useState('idle'); // idle | month-pick | importing
+  const [error, setError] = useState(null);
   const [parsedRows, setParsedRows] = useState([]);
   const [availableMonths, setAvailableMonths] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState('');
-  const [reviewRows, setReviewRows] = useState([]);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const fileRef = useRef(null);
 
-  async function processFile(file) {
-    setError('');
-    if (!file?.name.endsWith('.csv')) { setError('Please select a .csv file.'); return; }
-    const text = await file.text();
-    const raw = parseCSV(text);
-    const normalized = raw
-      .filter(r => r['Date'] && r['Amount'])
-      .map(r => ({
-        date: toISODate((r['Date'] || '').trim()),
-        description: (r['Description'] || r['Original Description'] || '').trim(),
-        originalDescription: (r['Original Description'] || r['Description'] || '').trim(),
-        category: (r['Category'] || '').trim(),
-        amount: parseFloat((r['Amount'] || '0').replace(/[^0-9.\-]/g, '')),
-        status: (r['Status'] || 'Posted').trim(),
-      }))
-      .filter(r => !isNaN(r.amount));
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
 
-    if (normalized.length === 0) { setError('No valid transactions found in file.'); return; }
+    let text;
+    try { text = await file.text(); }
+    catch { setError('Could not read the file.'); return; }
 
-    const months = [...new Set(normalized.map(r => toMonth(r.date)))].sort();
-    setParsedRows(normalized);
+    const rows = parseCSV(text);
+    if (rows.length === 0) {
+      setError('No valid rows found. Make sure this is a USAA CSV export.');
+      return;
+    }
+
+    const months = [...new Set(rows.map(r => r.month))].filter(Boolean).sort();
+    if (months.length === 0) {
+      setError('Could not parse dates from this file.');
+      return;
+    }
+
+    setParsedRows(rows);
     setAvailableMonths(months);
 
-    if (months.length > 1) {
-      setSelectedMonth(months[months.length - 1]);
-      setStep('month-select');
+    if (months.length === 1) {
+      await runImport(rows, months[0]);
     } else {
-      await buildReview(months[0], normalized);
+      setSelectedMonth(months[months.length - 1]);
+      setStage('month-pick');
     }
   }
 
-  async function buildReview(month, rows = parsedRows) {
-    setLoading(true);
-    setError('');
+  async function runImport(rows, month) {
+    setStage('importing');
     try {
-      const snap = await getDocs(
+      // Fetch existing transactions for this month to detect duplicates
+      const existingSnap = await getDocs(
         query(collection(db, 'users', uid, 'transactions'), where('month', '==', month))
       );
-      const existing = snap.docs.map(d => d.data());
-      const monthRows = rows.filter(r => toMonth(r.date) === month);
-      const deduped = monthRows.filter(r =>
-        !existing.some(e => e.date === r.date && e.originalDescription === r.originalDescription && e.amount === r.amount)
+      const existingKeys = new Set(
+        existingSnap.docs.map(d => {
+          const data = d.data();
+          return `${data.date}|${data.originalDescription}|${data.amount}`;
+        })
       );
 
-      const processed = deduped.map(row => {
-        const skip = AUTO_SKIP.find(s => s.test(row));
-        if (skip) {
-          return { ...row, month, categoryType: 'skipped', categoryId: null, categoryName: 'Skipped', matchedByRule: false, skipReason: skip.reason };
+      // Filter to selected month, remove duplicates
+      let filtered = rows
+        .filter(r => r.month === month)
+        .filter(r => !existingKeys.has(`${r.date}|${r.originalDescription}|${r.amount}`));
+
+      if (filtered.length === 0) {
+        onClose();
+        return;
+      }
+
+      // Classify each row
+      const importRows = filtered.map(row => {
+        const skipReason = getSkipReason(row);
+        if (skipReason) {
+          return { ...row, categoryType: 'skipped', categoryId: null, categoryName: null };
         }
-        const rule = categoryRules.find(r =>
-          row.originalDescription.toLowerCase().includes(r.keyword.toLowerCase())
-        );
-        if (rule) {
-          return { ...row, month, categoryType: rule.categoryType, categoryId: rule.categoryId, categoryName: rule.categoryName, matchedByRule: true, skipReason: null };
+        const match = findRuleMatch(row, categoryRules);
+        if (match) {
+          return {
+            ...row,
+            categoryType: match.categoryType,
+            categoryId: match.categoryId,
+            categoryName: match.categoryName,
+          };
         }
-        return { ...row, month, categoryType: null, categoryId: null, categoryName: '', matchedByRule: false, skipReason: null };
+        return { ...row, categoryType: null, categoryId: null, categoryName: null };
       });
 
-      setSelectedMonth(month);
-      setReviewRows(processed);
-      setStep('review');
-    } catch (e) {
-      setError('Failed to check for duplicates: ' + e.message);
-    } finally {
-      setLoading(false);
+      const batch = buildImportBatch(uid, importRows, obligations);
+      await batch.commit();
+      onClose();
+    } catch (err) {
+      console.error('Import failed:', err);
+      setError('Import failed. Please try again.');
+      setStage('idle');
     }
-  }
-
-  async function handleConfirm(data) {
-    await onImport(data);
-    onClose();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
-      {/*
-        Modal wrapper: max-height caps the total height.
-        flex-col lets the three layers (header / list / footer) stack.
-        overflow-hidden clips to the rounded corners.
-      */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
       <div
-        className="flex flex-col w-full max-w-2xl rounded-xl overflow-hidden shadow-2xl"
-        style={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3e', height: '85vh' }}
+        className="w-full max-w-sm rounded-2xl p-6 flex flex-col gap-4"
+        style={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3e' }}
       >
-        {/* Header — always fixed, never scrolls */}
-        <div className="flex items-center justify-between px-5 py-4 border-b flex-shrink-0" style={{ borderColor: '#2a2d3e' }}>
-          <h2 className="text-base font-semibold" style={{ color: '#f1f5f9' }}>
-            {step === 'upload' && 'Import CSV'}
-            {step === 'month-select' && 'Select month'}
-            {step === 'review' && `Review — ${monthLabel(selectedMonth)}`}
-          </h2>
-          <button onClick={onClose} className="text-lg hover:opacity-60" style={{ color: '#64748b' }}>✕</button>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold" style={{ color: '#f1f5f9' }}>Import CSV</h2>
+          <button
+            onClick={onClose}
+            className="text-lg leading-none hover:opacity-70"
+            style={{ color: '#64748b' }}
+          >
+            ✕
+          </button>
         </div>
 
-        {/* Upload step — simple scrollable body */}
-        {step === 'upload' && (
-          <div className="overflow-y-auto p-6 flex flex-col items-center gap-4">
-            <div
-              className="w-full rounded-xl border-2 border-dashed flex flex-col items-center justify-center py-12 gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-              style={{ borderColor: '#2a2d3e' }}
-              onClick={() => fileRef.current?.click()}
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => { e.preventDefault(); processFile(e.dataTransfer.files[0]); }}
-            >
-              <span className="text-3xl">📂</span>
-              <span className="text-sm" style={{ color: '#f1f5f9' }}>Click or drag a USAA CSV file here</span>
-              <span className="text-xs" style={{ color: '#64748b' }}>Accepts .csv only</span>
-            </div>
-            <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => processFile(e.target.files[0])} />
-            {error && <p className="text-sm" style={{ color: '#ef4444' }}>{error}</p>}
-            {loading && <p className="text-sm" style={{ color: '#64748b' }}>Processing…</p>}
+        {stage === 'importing' && (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
           </div>
         )}
 
-        {/* Month select step — simple scrollable body */}
-        {step === 'month-select' && (
-          <div className="overflow-y-auto p-6 flex flex-col gap-4">
+        {stage === 'month-pick' && (
+          <>
             <p className="text-sm" style={{ color: '#64748b' }}>
-              This file contains transactions from multiple months. Which month would you like to import?
+              This file spans {availableMonths.length} months. Select which month to import.
             </p>
-            <div className="flex flex-col gap-2">
+            <select
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(e.target.value)}
+              className="w-full border rounded-xl px-3 py-2 text-sm outline-none"
+              style={{ backgroundColor: '#0f1117', borderColor: '#2a2d3e', color: '#f1f5f9' }}
+            >
               {availableMonths.map(m => (
-                <label key={m} className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="month"
-                    value={m}
-                    checked={selectedMonth === m}
-                    onChange={() => setSelectedMonth(m)}
-                    className="accent-indigo-500"
-                  />
-                  <span className="text-sm" style={{ color: '#f1f5f9' }}>{monthLabel(m)}</span>
-                </label>
+                <option key={m} value={m}>{monthLabel(m)}</option>
               ))}
-            </div>
-            {error && <p className="text-sm" style={{ color: '#ef4444' }}>{error}</p>}
-            <div className="flex gap-3 mt-2">
-              <button
-                onClick={() => setStep('upload')}
-                className="text-sm px-4 py-2 rounded-lg border"
-                style={{ borderColor: '#2a2d3e', color: '#64748b' }}
-              >
-                Back
-              </button>
-              <button
-                onClick={() => buildReview(selectedMonth)}
-                disabled={loading}
-                className="text-sm px-4 py-2 rounded-lg font-medium"
-                style={{ backgroundColor: '#6366f1', color: '#fff', opacity: loading ? 0.6 : 1 }}
-              >
-                {loading ? 'Loading…' : 'Continue'}
-              </button>
-            </div>
-          </div>
+            </select>
+            <button
+              onClick={() => runImport(parsedRows, selectedMonth)}
+              className="py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
+            >
+              Import {monthLabel(selectedMonth)}
+            </button>
+          </>
         )}
 
-        {/*
-          Review step — ImportReviewScreen returns a React fragment so its
-          two children (scrollable list + footer) are direct flex children
-          of this modal wrapper, giving us the exact 3-part layout:
-            modal header  (flex-shrink-0)
-            scrollable list  (flex-1, overflow-y-auto)
-            confirm footer  (flex-shrink-0)
-        */}
-        {step === 'review' && (
-          <ImportReviewScreen
-            rows={reviewRows}
-            goals={goals}
-            obligations={obligations}
-            buckets={buckets}
-            onConfirm={handleConfirm}
-            onBack={() => setStep(availableMonths.length > 1 ? 'month-select' : 'upload')}
-          />
+        {stage === 'idle' && (
+          <>
+            <p className="text-sm" style={{ color: '#64748b' }}>
+              Select a USAA CSV export. Transactions are imported immediately — duplicates and auto-skip rules are applied automatically.
+            </p>
+            {error && (
+              <p className="text-sm" style={{ color: '#ef4444' }}>{error}</p>
+            )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <button
+              onClick={() => { setError(null); fileRef.current?.click(); }}
+              className="py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
+            >
+              Choose File
+            </button>
+          </>
         )}
       </div>
     </div>

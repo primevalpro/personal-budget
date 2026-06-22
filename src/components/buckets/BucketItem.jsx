@@ -21,9 +21,9 @@ function TrashIcon() {
   );
 }
 
-export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onFullyFund, onSetMonthlyAssigned, subcategories }) {
-  const [mode, setMode] = useState(null); // null | 'addFunds' | 'pencil' | 'edit' | 'delete'
-  const [input, setInput] = useState('');
+export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onWithdraw, subcategories }) {
+  const [mode, setMode] = useState(null); // null | 'assign' | 'withdraw' | 'edit' | 'delete'
+  const [inputAmount, setInputAmount] = useState('');
   const [editName, setEditName] = useState(bucket.name);
   const [editTarget, setEditTarget] = useState(String(bucket.targetAmount));
   const [editMonthlyTarget, setEditMonthlyTarget] = useState(
@@ -32,73 +32,31 @@ export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onF
   const [editSubcategoryId, setEditSubcategoryId] = useState(bucket.subcategoryId || '');
 
   const current = bucket.currentAmount || 0;
-  const targetAmount = bucket.targetAmount || 0;
-  const overallPct = targetAmount > 0 ? Math.min(current / targetAmount, 1) : 0;
+  const isOverdrawn = current < 0;
+  const pct = bucket.targetAmount > 0 ? current / bucket.targetAmount : 0;
+  const isComplete = pct >= 1;
+  const pctDisplay = isOverdrawn ? 0 : Math.round(Math.min(pct * 100, 100));
 
   const monthlyTarget = bucket.monthlyTarget || 0;
-  const monthlyAssigned = bucket.monthlyAssigned || 0;
-  const hasMonthly = monthlyTarget > 0;
-
-  const isMonthlyUnfunded = monthlyAssigned === 0;
-  const isMonthlyFull = monthlyAssigned >= monthlyTarget;
-  const isMonthlyPartial = !isMonthlyUnfunded && !isMonthlyFull;
-  const isMonthlyOver = monthlyAssigned > monthlyTarget;
-  const monthlyPct = monthlyTarget > 0 ? Math.min(monthlyAssigned / monthlyTarget, 1) : 0;
-  const monthlyBarColor = isMonthlyUnfunded ? '#ef4444' : isMonthlyPartial ? '#f59e0b' : '#22c55e';
-
-  let monthlyAmountLabel;
-  if (isMonthlyOver) {
-    const overage = monthlyAssigned - monthlyTarget;
-    monthlyAmountLabel = (
-      <span style={{ color: '#22c55e' }}>
-        {formatCurrency(monthlyAssigned)} / {formatCurrency(monthlyTarget)}{' '}
-        <span>(+{formatCurrency(overage)})</span>
-      </span>
-    );
-  } else {
-    monthlyAmountLabel = (
-      <span style={{ color: isMonthlyFull ? '#22c55e' : '#64748b' }}>
-        {formatCurrency(monthlyAssigned)} / {formatCurrency(monthlyTarget)}
-      </span>
-    );
-  }
-
-  let monthlyStatusLabel;
-  if (isMonthlyUnfunded) {
-    monthlyStatusLabel = <span style={{ color: '#ef4444' }}>Unfunded</span>;
-  } else if (isMonthlyOver) {
-    const overage = monthlyAssigned - monthlyTarget;
-    monthlyStatusLabel = <span style={{ color: '#22c55e' }}>{formatCurrency(overage)} over monthly goal</span>;
-  } else if (isMonthlyFull) {
-    monthlyStatusLabel = <span style={{ color: '#22c55e' }}>Fully funded</span>;
-  } else {
-    monthlyStatusLabel = (
-      <span style={{ color: '#f59e0b' }}>
-        {formatCurrency(monthlyAssigned)} of {formatCurrency(monthlyTarget)} assigned
-      </span>
-    );
-  }
+  const monthlyAssigned = bucket.monthlyAssigned || 0; // already normalized in hook
+  const monthlyMet = monthlyTarget > 0 && monthlyAssigned >= monthlyTarget;
 
   function reset() {
     setMode(null);
-    setInput('');
+    setInputAmount('');
   }
 
-  async function handleFullyFund() {
-    await onFullyFund(bucket.id, monthlyTarget, monthlyAssigned, current);
-  }
-
-  async function handleAddFunds() {
-    const amount = Number(input);
+  async function handleAssign() {
+    const amount = Number(inputAmount);
     if (isNaN(amount) || amount <= 0) return;
     await onAddFunds(bucket.id, amount, monthlyAssigned);
     reset();
   }
 
-  async function handlePencil() {
-    const val = Number(input);
-    if (isNaN(val) || val < 0) return;
-    await onSetMonthlyAssigned(bucket.id, val, monthlyAssigned, current);
+  async function handleWithdraw() {
+    const amount = Number(inputAmount);
+    if (isNaN(amount) || amount <= 0) return;
+    await onWithdraw(bucket.id, amount, current, monthlyAssigned);
     reset();
   }
 
@@ -115,7 +73,7 @@ export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onF
     setMode(null);
   }
 
-  function inputKeyDown(handler) {
+  function amountKeyDown(handler) {
     return e => {
       if (e.key === 'Enter') handler();
       if (e.key === 'Escape') reset();
@@ -195,17 +153,17 @@ export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onF
   }
 
   return (
-    <div className="py-3 px-2">
-      {/* Bucket name + hover edit/delete */}
-      <div className="flex items-center justify-between mb-3 group">
-        <span className="text-sm font-medium" style={{ color: '#f1f5f9' }}>{bucket.name}</span>
-        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => { setEditName(bucket.name); setEditTarget(String(bucket.targetAmount)); setEditMonthlyTarget(bucket.monthlyTarget ? String(bucket.monthlyTarget) : ''); setMode('edit'); }}
-            className="p-1 rounded hover:opacity-70"
-            style={{ color: '#64748b' }}
-            title="Edit"
-          >
+    <div className="py-3 px-2 group">
+      {/* Name row */}
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-medium truncate" style={{ color: '#f1f5f9' }}>{bucket.name}</span>
+          {isComplete && (
+            <span className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded font-semibold" style={{ backgroundColor: '#22c55e22', color: '#22c55e' }}>✓</span>
+          )}
+        </div>
+        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
+          <button onClick={() => { setEditName(bucket.name); setEditTarget(String(bucket.targetAmount)); setEditMonthlyTarget(bucket.monthlyTarget ? String(bucket.monthlyTarget) : ''); setMode('edit'); }} className="p-1 rounded hover:opacity-70" style={{ color: '#64748b' }} title="Edit">
             <PencilIcon />
           </button>
           <button onClick={() => setMode('delete')} className="p-1 rounded hover:opacity-70" style={{ color: '#ef4444' }} title="Delete">
@@ -214,112 +172,91 @@ export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onF
         </div>
       </div>
 
-      {/* Monthly section — only when monthlyTarget > 0 */}
-      {hasMonthly && (
-        <div className="mb-3">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium" style={{ color: '#64748b' }}>This month</span>
-            <span className="text-xs tabular-nums">{monthlyAmountLabel}</span>
-          </div>
+      {/* Amount + pct */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs tabular-nums" style={{ color: isOverdrawn ? '#ef4444' : '#64748b' }}>
+          {isOverdrawn ? `−${formatCurrency(Math.abs(current))}` : formatCurrency(current)} / {formatCurrency(bucket.targetAmount)}
+        </span>
+        {!isOverdrawn && (
+          <span className="text-xs font-semibold tabular-nums" style={{ color: isComplete ? '#22c55e' : '#64748b' }}>
+            {pctDisplay}%
+          </span>
+        )}
+      </div>
 
-          <div className="h-1.5 rounded-full overflow-hidden mb-1" style={{ backgroundColor: '#2a2d3e' }}>
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{ width: `${monthlyPct * 100}%`, backgroundColor: monthlyBarColor }}
-            />
-          </div>
+      {/* Savings progress bar */}
+      <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: '#0f1117' }}>
+        <div
+          className="h-full rounded-full transition-all duration-300"
+          style={{ width: `${pctDisplay}%`, backgroundColor: isOverdrawn ? '#ef4444' : isComplete ? '#22c55e' : '#6366f1' }}
+        />
+      </div>
 
-          <p className="text-xs mb-2">{monthlyStatusLabel}</p>
-
-          {mode === null && (
-            <div className="flex gap-1.5">
-              <button
-                onClick={handleFullyFund}
-                className="px-2.5 py-1 rounded-md text-xs font-medium transition-opacity hover:opacity-90"
-                style={{ backgroundColor: '#22c55e22', color: '#22c55e', border: '1px solid #22c55e44' }}
-              >
-                Fully fund
-              </button>
-              <button
-                onClick={() => { setInput(''); setMode('addFunds'); }}
-                className="px-2.5 py-1 rounded-md text-xs font-medium transition-opacity hover:opacity-80 border"
-                style={{ borderColor: '#2a2d3e', color: '#64748b' }}
-              >
-                Add funds
-              </button>
-              <button
-                onClick={() => { setInput(String(monthlyAssigned)); setMode('pencil'); }}
-                className="w-7 h-7 rounded-md flex items-center justify-center transition-opacity hover:opacity-80 border text-xs"
-                style={{ borderColor: '#2a2d3e', color: '#64748b' }}
-                title="Set monthly assigned amount"
-              >
-                ✏
-              </button>
-            </div>
-          )}
-
-          {mode === 'addFunds' && (
-            <div className="flex gap-2">
-              <input
-                className="flex-1 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums outline-none"
-                style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
-                type="number" min="0.01" step="0.01"
-                placeholder="Amount to add"
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={inputKeyDown(handleAddFunds)}
-                autoFocus
-              />
-              <button onClick={handleAddFunds} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>Add</button>
-              <button onClick={reset} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
-            </div>
-          )}
-
-          {mode === 'pencil' && (
-            <div className="flex gap-2">
-              <input
-                className="flex-1 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums outline-none"
-                style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
-                type="number" min="0" step="0.01"
-                placeholder={formatCurrency(monthlyAssigned)}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={inputKeyDown(handlePencil)}
-                autoFocus
-              />
-              <button onClick={handlePencil} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}>Set</button>
-              <button onClick={reset} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
-            </div>
-          )}
-
-          {/* Divider between monthly and overall */}
-          <div className="mt-3 border-t" style={{ borderColor: '#2a2d3e' }} />
+      {/* Overdrawn warning */}
+      {isOverdrawn && (
+        <div className="mb-2 text-xs font-medium" style={{ color: '#ef4444' }}>
+          Fund overdrawn by {formatCurrency(Math.abs(current))}
         </div>
       )}
 
-      {/* Overall section — read-only bar */}
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-medium" style={{ color: '#64748b' }}>Overall</span>
-          <span className="text-xs tabular-nums" style={{ color: current < 0 ? '#ef4444' : overallPct >= 1 ? '#22c55e' : '#64748b' }}>
-            {formatCurrency(current)} / {formatCurrency(targetAmount)}
-          </span>
+      {/* Monthly target line */}
+      {monthlyTarget > 0 && (
+        <div className="flex items-center justify-between mb-3 text-xs tabular-nums">
+          <span style={{ color: '#64748b' }}>This month:</span>
+          {monthlyMet ? (
+            <span style={{ color: '#22c55e' }}>✓ {formatCurrency(monthlyAssigned)} / {formatCurrency(monthlyTarget)}</span>
+          ) : (
+            <span style={{ color: '#64748b' }}>
+              {formatCurrency(monthlyAssigned)}
+              <span style={{ color: '#64748b' }}> / </span>
+              {formatCurrency(monthlyTarget)}
+            </span>
+          )}
         </div>
-        <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#2a2d3e' }}>
-          <div
-            className="h-full rounded-full transition-all duration-300"
-            style={{
-              width: current < 0 ? '100%' : `${overallPct * 100}%`,
-              backgroundColor: current < 0 ? '#ef4444' : '#3b82f6',
-            }}
+      )}
+
+      {/* Assign / Withdraw buttons */}
+      {mode === null && (
+        <div className="flex gap-2">
+          <button
+            onClick={() => setMode('assign')}
+            className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-opacity hover:opacity-90"
+            style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
+          >
+            + Assign
+          </button>
+          <button
+            onClick={() => setMode('withdraw')}
+            className="flex-1 py-1.5 rounded-lg text-xs font-medium border transition-opacity hover:opacity-80"
+            style={{ borderColor: '#2a2d3e', color: '#64748b' }}
+          >
+            Withdraw
+          </button>
+        </div>
+      )}
+
+      {(mode === 'assign' || mode === 'withdraw') && (
+        <div className="flex gap-2">
+          <input
+            className="flex-1 bg-transparent border rounded-lg px-2 py-1.5 text-sm tabular-nums outline-none"
+            style={{ borderColor: '#2a2d3e', color: '#f1f5f9' }}
+            type="number" min="0.01" step="0.01"
+            placeholder={mode === 'assign' ? 'Amount to assign' : 'Amount to withdraw'}
+            value={inputAmount}
+            onChange={e => setInputAmount(e.target.value)}
+            onKeyDown={amountKeyDown(mode === 'assign' ? handleAssign : handleWithdraw)}
+            autoFocus
           />
+          <button
+            onClick={mode === 'assign' ? handleAssign : handleWithdraw}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium"
+            style={{ backgroundColor: mode === 'assign' ? '#6366f1' : '#374151', color: '#f1f5f9' }}
+          >
+            {mode === 'assign' ? 'Assign' : 'Withdraw'}
+          </button>
+          <button onClick={reset} className="px-3 py-1.5 rounded-lg text-sm border" style={{ borderColor: '#2a2d3e', color: '#64748b' }}>Cancel</button>
         </div>
-        {current < 0 && (
-          <p className="text-xs mt-1" style={{ color: '#ef4444' }}>
-            Fund overdrawn by {formatCurrency(Math.abs(current))}
-          </p>
-        )}
-      </div>
+      )}
     </div>
   );
 }
