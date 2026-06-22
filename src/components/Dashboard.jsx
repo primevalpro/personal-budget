@@ -17,7 +17,6 @@ export default function Dashboard({ user }) {
   const uid = user.uid;
   const cm = currentMonth();
   const [activePage, setActivePage] = useState('budget');
-  const [page, setPage] = useState('overview');
   const [showIncomeModal, setShowIncomeModal] = useState(false);
 
   const { balance, updateBalance } = useBudget(uid);
@@ -31,8 +30,8 @@ export default function Dashboard({ user }) {
     addGoal, updateGoal, deleteGoal, assignGoal, addSpend,
   } = useGoals(uid);
   const {
-    buckets,
-    addBucket, updateBucket, deleteBucket, addFunds, withdraw,
+    buckets, loading: bucketsLoading,
+    addBucket, updateBucket, deleteBucket, addFunds, withdraw, fullyFundBucket, setMonthlyAssigned,
   } = useBuckets(uid);
   const { subcategories, addSubcategory, updateSubcategory, deleteSubcategory } = useSubcategories(uid);
   const { rules: categoryRules } = useCategoryRules(uid);
@@ -101,7 +100,7 @@ export default function Dashboard({ user }) {
             onAddIncome={() => setShowIncomeModal(true)}
           />
 
-          {page === 'overview' ? (
+          <div className="flex-1 min-h-0 overflow-y-auto">
             <OverviewPage
               obligations={obligations}
               goals={goals}
@@ -109,9 +108,7 @@ export default function Dashboard({ user }) {
               cm={cm}
               income={income}
               onDeleteIncome={deleteIncome}
-              onGoToPlanner={() => setPage('planner')}
             />
-          ) : (
             <PlannerPage
               obligations={obligations}
               goals={goals}
@@ -135,12 +132,13 @@ export default function Dashboard({ user }) {
               deleteBucket={deleteBucket}
               addFunds={addFunds}
               withdraw={withdraw}
+              fullyFundBucket={fullyFundBucket}
+              setMonthlyAssigned={setMonthlyAssigned}
               addSubcategory={addSubcategory}
               updateSubcategory={updateSubcategory}
               deleteSubcategory={deleteSubcategory}
-              onGoToOverview={() => setPage('overview')}
             />
-          )}
+          </div>
 
           {showIncomeModal && (
             <AddIncomeModal
