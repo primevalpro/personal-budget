@@ -7,9 +7,13 @@ import { currentMonth } from './dateUtils';
 
 // Apply a single category effect to an existing batch
 export function applyOne(batch, uid, categoryType, categoryId, amount, obligations) {
-  if (!categoryType || categoryType === 'skipped' || !categoryId) return;
+  if (!categoryType || categoryType === 'skipped' || !categoryId) {
+    console.log('[applyOne] early return — categoryType:', categoryType, 'categoryId:', categoryId);
+    return;
+  }
   const abs = Math.abs(amount);
   if (categoryType === 'goal') {
+    console.log('[applyOne] goal — id:', categoryId, 'spentAmount += ', abs);
     batch.update(doc(db, 'users', uid, 'goals', categoryId), {
       spentAmount: increment(abs),
     });

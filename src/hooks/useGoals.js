@@ -44,7 +44,9 @@ export function useGoals(uid) {
       unsub = onSnapshot(
         query(colRef, where('month', '==', month)),
         snap => {
-          setGoals(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          const loaded = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          console.log('[useGoals] snapshot fired —', loaded.length, 'goals:', loaded.map(g => ({ id: g.id, category: g.category, spentAmount: g.spentAmount, assignedAmount: g.assignedAmount, month: g.month })));
+          setGoals(loaded);
           setLoading(false);
         },
       );
