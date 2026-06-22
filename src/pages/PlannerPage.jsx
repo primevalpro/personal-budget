@@ -3,7 +3,7 @@ import GoalsSection from '../components/planner/GoalsSection';
 import BucketsSection from '../components/planner/BucketsSection';
 
 export default function PlannerPage({
-  obligations, goals, buckets, cm,
+  uid, obligations, goals, buckets, cm,
   obligationSubcats, goalSubcats, bucketSubcats,
   addObligation, updateObligation, deleteObligation, assignObligation, togglePaid,
   addGoal, updateGoal, deleteGoal, assignGoal, addSpend,
@@ -14,6 +14,7 @@ export default function PlannerPage({
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
       <div className="flex flex-col gap-12">
           <ObligationsSection
+            uid={uid}
             obligations={obligations}
             subcategories={obligationSubcats}
             cm={cm}
@@ -27,6 +28,7 @@ export default function PlannerPage({
             deleteSubcategory={deleteSubcategory}
           />
           <GoalsSection
+            uid={uid}
             goals={goals}
             subcategories={goalSubcats}
             addGoal={addGoal}
@@ -39,6 +41,7 @@ export default function PlannerPage({
             deleteSubcategory={deleteSubcategory}
           />
           <BucketsSection
+            uid={uid}
             buckets={buckets}
             subcategories={bucketSubcats}
             addBucket={addBucket}

@@ -149,12 +149,12 @@ export default function ImportModal({ uid, goals, obligations, buckets, category
           return { ...row, categoryType: 'skipped', categoryId: null, categoryName: null };
         }
         const match = findRuleMatch(row, categoryRules);
-        if (match) {
+        if (match && match.categoryType && match.categoryId) {
           return {
             ...row,
             categoryType: match.categoryType,
             categoryId: match.categoryId,
-            categoryName: match.categoryName,
+            categoryName: match.categoryName || null,
           };
         }
         return { ...row, categoryType: null, categoryId: null, categoryName: null };

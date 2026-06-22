@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { collection, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../firebase';
 import { currentMonth, formatCurrency, ordinalSuffix } from '../../utils/dateUtils';
 
 function PencilIcon() {
@@ -21,10 +23,11 @@ function TrashIcon() {
   );
 }
 
-export default function ObligationItem({ obligation, onUpdate, onDelete, onAssign, onTogglePaid, subcategories }) {
+export default function ObligationItem({ uid, obligation, onUpdate, onDelete, onAssign, onTogglePaid, subcategories }) {
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [mode, setMode] = useState(null); // null | 'addFunds' | 'pencil'
+  const [recalculating, setRecalculating] = useState(false);
   const [input, setInput] = useState('');
   const [editName, setEditName] = useState(obligation.name);
   const [editAmount, setEditAmount] = useState(String(obligation.amount));
@@ -48,6 +51,22 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
     : isFull
     ? 'Fully funded'
     : `${formatCurrency(assignedAmount)} of ${formatCurrency(obligation.amount)} assigned`;
+
+  async function handleRecalculate() {
+    setRecalculating(true);
+    try {
+      const cm = currentMonth();
+      const snap = await getDocs(
+        query(collection(db, 'users', uid, 'transactions'), where('categoryId', '==', obligation.id))
+      );
+      const correctAssigned = snap.docs
+        .filter(d => { const dt = d.data(); return dt.categoryType === 'obligation' && dt.month === cm; })
+        .reduce((sum, d) => sum + Math.abs(d.data().amount || 0), 0);
+      await updateDoc(doc(db, 'users', uid, 'obligations', obligation.id), { assignedAmount: correctAssigned });
+    } finally {
+      setRecalculating(false);
+    }
+  }
 
   async function handleFullyFund() {
     await onAssign(obligation.id, obligation.amount);
@@ -181,7 +200,7 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
   }
 
   return (
-    <div className={`rounded-lg px-2 py-2 transition-opacity ${isPaid ? 'opacity-40' : ''}`}>
+    <div className={`rounded-lg px-2 py-2 transition-opacity group ${isPaid ? 'opacity-40' : ''}`}>
       {/* Name row */}
       <div className="flex items-center gap-2 group mb-1.5">
         {/* Paid toggle */}
@@ -230,8 +249,18 @@ export default function ObligationItem({ obligation, onUpdate, onDelete, onAssig
         />
       </div>
 
-      {/* Status label */}
-      <p className="text-xs mb-2" style={{ color: statusColor }}>{statusLabel}</p>
+      {/* Status label + recalculate */}
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs" style={{ color: statusColor }}>{statusLabel}</p>
+        <button
+          onClick={handleRecalculate}
+          disabled={recalculating}
+          className="text-[11px] hover:opacity-80 transition-opacity opacity-0 group-hover:opacity-100"
+          style={{ color: '#475569' }}
+        >
+          {recalculating ? 'Recalculating…' : '↻ Recalculate'}
+        </button>
+      </div>
 
       {/* Action buttons */}
       {mode === null && (

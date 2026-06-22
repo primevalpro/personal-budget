@@ -110,6 +110,7 @@ export default function Dashboard({ user }) {
               onDeleteIncome={deleteIncome}
             />
             <PlannerPage
+              uid={uid}
               obligations={obligations}
               goals={goals}
               buckets={buckets}

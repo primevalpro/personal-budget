@@ -23,7 +23,7 @@ function TrashIcon() {
 }
 
 function SubcategoryBlock({
-  subcat, items, allSubcats,
+  uid, subcat, items, allSubcats,
   onAdd, onUpdateItem, onDeleteItem, onAddFunds, onWithdraw, onFullyFund, onSetMonthlyAssigned,
   onUpdateSubcat, onDeleteSubcat,
 }) {
@@ -118,10 +118,12 @@ function SubcategoryBlock({
         {items.map((b, i) => (
           <div key={b.id} style={i > 0 ? { borderTop: '1px solid #2a2d3e' } : {}}>
             <BucketItem
+              uid={uid}
               bucket={b}
               onUpdate={onUpdateItem}
               onDelete={onDeleteItem}
               onAddFunds={onAddFunds}
+              onWithdraw={onWithdraw}
               onFullyFund={onFullyFund}
               onSetMonthlyAssigned={onSetMonthlyAssigned}
               subcategories={allSubcats}
@@ -178,7 +180,7 @@ function SubcategoryBlock({
 }
 
 export default function BucketsSection({
-  buckets, subcategories,
+  uid, buckets, subcategories,
   addBucket, updateBucket, deleteBucket, addFunds, withdraw, fullyFundBucket, setMonthlyAssigned,
   addSubcategory, updateSubcategory, deleteSubcategory,
 }) {
@@ -215,6 +217,7 @@ export default function BucketsSection({
         {subcategories.map(subcat => (
           <SubcategoryBlock
             key={subcat.id}
+            uid={uid}
             subcat={subcat}
             items={buckets.filter(b => b.subcategoryId === subcat.id)}
             allSubcats={subcategories}
@@ -233,6 +236,7 @@ export default function BucketsSection({
         {(uncategorized.length > 0 || subcategories.length === 0) && (
           <SubcategoryBlock
             key="__uncat__"
+            uid={uid}
             subcat={null}
             items={uncategorized}
             allSubcats={subcategories}

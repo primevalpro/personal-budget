@@ -23,7 +23,7 @@ function TrashIcon() {
 }
 
 function SubcategoryBlock({
-  subcat, items, allSubcats, cm,
+  uid, subcat, items, allSubcats, cm,
   onAdd, onUpdateItem, onDeleteItem, onAssignItem, onTogglePaid,
   onUpdateSubcat, onDeleteSubcat,
 }) {
@@ -136,6 +136,7 @@ function SubcategoryBlock({
         {items.map((o, i) => (
           <div key={o.id} style={i > 0 ? { borderTop: '1px solid #2a2d3e' } : {}}>
             <ObligationItem
+              uid={uid}
               obligation={o}
               onUpdate={onUpdateItem}
               onDelete={onDeleteItem}
@@ -209,7 +210,7 @@ function SubcategoryBlock({
 }
 
 export default function ObligationsSection({
-  obligations, subcategories, cm,
+  uid, obligations, subcategories, cm,
   addObligation, updateObligation, deleteObligation, assignObligation, togglePaid,
   addSubcategory, updateSubcategory, deleteSubcategory,
 }) {
@@ -250,6 +251,7 @@ export default function ObligationsSection({
         {subcategories.map(subcat => (
           <SubcategoryBlock
             key={subcat.id}
+            uid={uid}
             subcat={subcat}
             items={obligations.filter(o => o.subcategoryId === subcat.id)}
             allSubcats={subcategories}
@@ -267,6 +269,7 @@ export default function ObligationsSection({
         {(uncategorized.length > 0 || subcategories.length === 0) && (
           <SubcategoryBlock
             key="__uncat__"
+            uid={uid}
             subcat={null}
             items={uncategorized}
             allSubcats={subcategories}

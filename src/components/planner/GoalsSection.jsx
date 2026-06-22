@@ -23,7 +23,7 @@ function TrashIcon() {
 }
 
 function SubcategoryBlock({
-  subcat, items, allSubcats,
+  uid, subcat, items, allSubcats,
   onAdd, onUpdateItem, onDeleteItem, onAssignItem, onAddSpend,
   onUpdateSubcat, onDeleteSubcat,
 }) {
@@ -117,6 +117,7 @@ function SubcategoryBlock({
         {items.map((g, i) => (
           <div key={g.id} style={i > 0 ? { borderTop: '1px solid #2a2d3e' } : {}}>
             <GoalItem
+              uid={uid}
               goal={g}
               onUpdate={onUpdateItem}
               onDelete={onDeleteItem}
@@ -167,7 +168,7 @@ function SubcategoryBlock({
 }
 
 export default function GoalsSection({
-  goals, subcategories,
+  uid, goals, subcategories,
   addGoal, updateGoal, deleteGoal, assignGoal, addSpend,
   addSubcategory, updateSubcategory, deleteSubcategory,
 }) {
@@ -206,6 +207,7 @@ export default function GoalsSection({
         {subcategories.map(subcat => (
           <SubcategoryBlock
             key={subcat.id}
+            uid={uid}
             subcat={subcat}
             items={goals.filter(g => g.subcategoryId === subcat.id)}
             allSubcats={subcategories}
@@ -222,6 +224,7 @@ export default function GoalsSection({
         {(uncategorized.length > 0 || subcategories.length === 0) && (
           <SubcategoryBlock
             key="__uncat__"
+            uid={uid}
             subcat={null}
             items={uncategorized}
             allSubcats={subcategories}

@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { formatCurrency } from '../../utils/dateUtils';
+import { collection, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../firebase';
+import { formatCurrency, currentMonth } from '../../utils/dateUtils';
 
 function PencilIcon() {
   return (
@@ -21,8 +23,9 @@ function TrashIcon() {
   );
 }
 
-export default function GoalItem({ goal, onUpdate, onDelete, onAssign, onAddSpend, subcategories }) {
+export default function GoalItem({ uid, goal, onUpdate, onDelete, onAssign, onAddSpend, subcategories }) {
   const [mode, setMode] = useState(null); // null | 'addFunds' | 'pencil' | 'spend' | 'edit' | 'delete'
+  const [recalculating, setRecalculating] = useState(false);
   const [input, setInput] = useState('');
   const [spendInput, setSpendInput] = useState('');
   const [editCategory, setEditCategory] = useState(goal.category);
@@ -78,6 +81,22 @@ export default function GoalItem({ goal, onUpdate, onDelete, onAssign, onAddSpen
     setMode(null);
     setInput('');
     setSpendInput('');
+  }
+
+  async function handleRecalculate() {
+    setRecalculating(true);
+    try {
+      const cm = currentMonth();
+      const snap = await getDocs(
+        query(collection(db, 'users', uid, 'transactions'), where('categoryId', '==', goal.id))
+      );
+      const correctSpent = snap.docs
+        .filter(d => { const dt = d.data(); return dt.categoryType === 'goal' && dt.month === cm; })
+        .reduce((sum, d) => sum + Math.abs(d.data().amount || 0), 0);
+      await updateDoc(doc(db, 'users', uid, 'goals', goal.id), { spentAmount: correctSpent });
+    } finally {
+      setRecalculating(false);
+    }
   }
 
   async function handleFullyFund() {
@@ -256,9 +275,21 @@ export default function GoalItem({ goal, onUpdate, onDelete, onAssign, onAddSpen
       </div>
 
       {/* Status labels */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-1">
         <span className="text-xs" style={{ color: statusLeftColor }}>{statusLeft}</span>
         <span className="text-xs" style={{ color: '#64748b' }}>{statusRight}</span>
+      </div>
+
+      {/* Recalculate */}
+      <div className="flex justify-end mb-2">
+        <button
+          onClick={handleRecalculate}
+          disabled={recalculating}
+          className="text-[11px] hover:opacity-80 transition-opacity opacity-0 group-hover:opacity-100"
+          style={{ color: '#475569' }}
+        >
+          {recalculating ? 'Recalculating…' : '↻ Recalculate'}
+        </button>
       </div>
 
       {/* Action buttons */}

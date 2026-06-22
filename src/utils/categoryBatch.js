@@ -19,6 +19,7 @@ export function applyOne(batch, uid, categoryType, categoryId, amount, obligatio
   } else if (categoryType === 'bucket') {
     batch.update(doc(db, 'users', uid, 'buckets', categoryId), {
       currentAmount: increment(-abs),
+      txSpend: increment(abs),
     });
   }
 }
@@ -39,6 +40,7 @@ export function reverseOne(batch, uid, tx) {
   } else if (tx.categoryType === 'bucket') {
     batch.update(doc(db, 'users', uid, 'buckets', tx.categoryId), {
       currentAmount: increment(abs),
+      txSpend: increment(-abs),
     });
   }
 }
@@ -81,7 +83,7 @@ export function buildImportBatch(uid, importRows, obligations) {
     batch.update(doc(db, 'users', uid, 'goals', id), { spentAmount: increment(total) });
   }
   for (const [id, total] of bucketTotals) {
-    batch.update(doc(db, 'users', uid, 'buckets', id), { currentAmount: increment(-total) });
+    batch.update(doc(db, 'users', uid, 'buckets', id), { currentAmount: increment(-total), txSpend: increment(total) });
   }
   for (const [id, total] of obligationTotals) {
     const ob = obligations.find(o => o.id === id);

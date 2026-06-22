@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { collection, getDocs, query, where, doc, updateDoc, increment } from 'firebase/firestore';
+import { db } from '../../firebase';
 import { formatCurrency } from '../../utils/dateUtils';
 
 function PencilIcon() {
@@ -21,8 +23,9 @@ function TrashIcon() {
   );
 }
 
-export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onWithdraw, subcategories }) {
+export default function BucketItem({ uid, bucket, onUpdate, onDelete, onAddFunds, onWithdraw, subcategories }) {
   const [mode, setMode] = useState(null); // null | 'assign' | 'withdraw' | 'edit' | 'delete'
+  const [recalculating, setRecalculating] = useState(false);
   const [inputAmount, setInputAmount] = useState('');
   const [editName, setEditName] = useState(bucket.name);
   const [editTarget, setEditTarget] = useState(String(bucket.targetAmount));
@@ -44,6 +47,26 @@ export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onW
   function reset() {
     setMode(null);
     setInputAmount('');
+  }
+
+  async function handleRecalculate() {
+    setRecalculating(true);
+    try {
+      const snap = await getDocs(
+        query(collection(db, 'users', uid, 'transactions'), where('categoryId', '==', bucket.id))
+      );
+      const correctSpend = snap.docs
+        .filter(d => d.data().categoryType === 'bucket')
+        .reduce((sum, d) => sum + Math.abs(d.data().amount || 0), 0);
+      const prevSpend = bucket.txSpend || 0;
+      const delta = correctSpend - prevSpend;
+      await updateDoc(doc(db, 'users', uid, 'buckets', bucket.id), {
+        currentAmount: increment(-delta),
+        txSpend: correctSpend,
+      });
+    } finally {
+      setRecalculating(false);
+    }
   }
 
   async function handleAssign() {
@@ -198,6 +221,18 @@ export default function BucketItem({ bucket, onUpdate, onDelete, onAddFunds, onW
           Fund overdrawn by {formatCurrency(Math.abs(current))}
         </div>
       )}
+
+      {/* Recalculate */}
+      <div className="flex justify-end mb-1">
+        <button
+          onClick={handleRecalculate}
+          disabled={recalculating}
+          className="text-[11px] hover:opacity-80 transition-opacity opacity-0 group-hover:opacity-100"
+          style={{ color: '#475569' }}
+        >
+          {recalculating ? 'Recalculating…' : '↻ Recalculate'}
+        </button>
+      </div>
 
       {/* Monthly target line */}
       {monthlyTarget > 0 && (
