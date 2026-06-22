@@ -144,7 +144,7 @@ export default function ImportModal({ uid, goals, obligations, buckets, category
       */}
       <div
         className="flex flex-col w-full max-w-2xl rounded-xl overflow-hidden shadow-2xl"
-        style={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3e', maxHeight: '85vh' }}
+        style={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3e', height: '85vh' }}
       >
         {/* Header — always fixed, never scrolls */}
         <div className="flex items-center justify-between px-5 py-4 border-b flex-shrink-0" style={{ borderColor: '#2a2d3e' }}>
