@@ -30,18 +30,49 @@ export default function GoalItem({ goal, onUpdate, onDelete, onAssign, onAddSpen
   const [editSubcategoryId, setEditSubcategoryId] = useState(goal.subcategoryId || '');
 
   const assigned = goal.assignedAmount || 0;
+  const spent = goal.spentAmount || 0;
+  const target = goal.targetAmount || 0;
 
   const isUnfunded = assigned === 0;
-  const isFull = goal.targetAmount === 0 || assigned >= goal.targetAmount;
-  const isPartial = !isUnfunded && !isFull;
-  const pct = goal.targetAmount > 0 ? Math.min(assigned / goal.targetAmount, 1) : 1;
-  const barColor = isUnfunded ? '#ef4444' : isPartial ? '#f59e0b' : '#22c55e';
-  const statusColor = isUnfunded ? '#ef4444' : isPartial ? '#f59e0b' : '#22c55e';
-  const statusLabel = isUnfunded
-    ? 'Unfunded'
-    : isFull
-    ? 'Fully funded'
-    : `${formatCurrency(assigned)} of ${formatCurrency(goal.targetAmount)} assigned`;
+  const isFull = target === 0 || assigned >= target;
+
+  // Bar segment states
+  const isOverspent = assigned > 0 && spent > assigned;
+  const isFullySpent = assigned > 0 && spent > 0 && spent === assigned;
+
+  // Bar widths as percentages of target
+  let spentPct = 0, remainingPct = 0, overspentPct = 0;
+  if (target > 0 && assigned > 0) {
+    if (isOverspent) {
+      spentPct = Math.min((assigned / target) * 100, 100);
+      overspentPct = Math.min(((spent - assigned) / target) * 100, 100 - spentPct);
+    } else {
+      spentPct = Math.min((spent / target) * 100, 100);
+      remainingPct = Math.max(0, Math.min(((assigned - spent) / target) * 100, 100 - spentPct));
+    }
+  }
+
+  const patternId = `stripes-${goal.id}`;
+
+  // Status labels
+  let statusLeft, statusLeftColor, statusRight;
+  if (isUnfunded) {
+    statusLeft = 'Unfunded';
+    statusLeftColor = '#ef4444';
+    statusRight = `${formatCurrency(target)} still needed`;
+  } else if (isOverspent) {
+    statusLeft = `${formatCurrency(spent - assigned)} over budget`;
+    statusLeftColor = '#ef4444';
+    statusRight = `${formatCurrency(spent)} spent of ${formatCurrency(assigned)} funded`;
+  } else if (isFullySpent) {
+    statusLeft = `${formatCurrency(spent)} spent — fully used`;
+    statusLeftColor = '#22c55e';
+    statusRight = `${formatCurrency(0)} remaining`;
+  } else {
+    statusLeft = `${formatCurrency(spent)} spent of ${formatCurrency(assigned)} funded`;
+    statusLeftColor = '#64748b';
+    statusRight = `${formatCurrency(assigned - spent)} remaining`;
+  }
 
   function reset() {
     setMode(null);
@@ -161,7 +192,7 @@ export default function GoalItem({ goal, onUpdate, onDelete, onAssign, onAddSpen
         <span className="text-sm font-medium" style={{ color: '#f1f5f9' }}>{goal.category}</span>
         <div className="flex items-center gap-1">
           <span className="text-xs tabular-nums mr-1" style={{ color: isFull ? '#22c55e' : '#64748b' }}>
-            {formatCurrency(assigned)} / {formatCurrency(goal.targetAmount)}
+            {formatCurrency(assigned)} / {formatCurrency(target)}
           </span>
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
@@ -192,16 +223,43 @@ export default function GoalItem({ goal, onUpdate, onDelete, onAssign, onAddSpen
         </div>
       </div>
 
-      {/* Progress bar */}
-      <div className="h-1.5 rounded-full overflow-hidden mb-1" style={{ backgroundColor: '#2a2d3e' }}>
-        <div
-          className="h-full rounded-full transition-all duration-300"
-          style={{ width: `${pct * 100}%`, backgroundColor: barColor }}
-        />
+      {/* Segmented progress bar */}
+      <div
+        className="h-1.5 rounded-full overflow-hidden mb-1"
+        style={{ backgroundColor: '#2a2d3e', display: 'flex' }}
+      >
+        {spentPct > 0 && (
+          <svg
+            style={{ width: `${spentPct}%`, height: '100%', display: 'block', flexShrink: 0 }}
+          >
+            <defs>
+              <pattern
+                id={patternId}
+                patternUnits="userSpaceOnUse"
+                width="6"
+                height="6"
+                patternTransform="rotate(45)"
+              >
+                <rect width="6" height="6" fill="#1D9E75" />
+                <rect width="3" height="6" fill="#0F6E56" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill={`url(#${patternId})`} />
+          </svg>
+        )}
+        {remainingPct > 0 && (
+          <div style={{ width: `${remainingPct}%`, height: '100%', backgroundColor: '#1D9E75', flexShrink: 0 }} />
+        )}
+        {overspentPct > 0 && (
+          <div style={{ width: `${overspentPct}%`, height: '100%', backgroundColor: '#E24B4A', flexShrink: 0 }} />
+        )}
       </div>
 
-      {/* Status label */}
-      <p className="text-xs mb-2" style={{ color: statusColor }}>{statusLabel}</p>
+      {/* Status labels */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs" style={{ color: statusLeftColor }}>{statusLeft}</span>
+        <span className="text-xs" style={{ color: '#64748b' }}>{statusRight}</span>
+      </div>
 
       {/* Action buttons */}
       {mode === null && (

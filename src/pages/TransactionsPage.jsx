@@ -6,6 +6,7 @@ import { formatCurrency, monthLabel, currentMonth } from '../utils/dateUtils';
 import { applyOne, reverseOne } from '../utils/categoryBatch';
 import { AssignableRow, CategorizedRow } from '../components/transactions/TransactionRow';
 import ImportModal from '../components/transactions/ImportModal';
+import AddTransactionModal from '../components/transactions/AddTransactionModal';
 
 // Generate up to 12 month options (current + 11 previous)
 function buildMonthOptions() {
@@ -89,6 +90,7 @@ export default function TransactionsPage({ uid, goals, obligations, buckets, cat
   const [month, setMonth] = useState(currentMonth());
   const [view, setView] = useState('category'); // 'category' | 'date'
   const [showImport, setShowImport] = useState(false);
+  const [showAddTx, setShowAddTx] = useState(false);
   const { transactions, loading } = useTransactions(uid, month);
 
   const uncategorized = transactions.filter(tx => tx.categoryType === null);
@@ -179,13 +181,22 @@ export default function TransactionsPage({ uid, goals, obligations, buckets, cat
             </button>
           </div>
 
-          <button
-            onClick={() => setShowImport(true)}
-            className="ml-auto px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-            style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
-          >
-            Import CSV
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => setShowAddTx(true)}
+              className="px-4 py-2 rounded-lg text-sm font-medium border hover:opacity-80 transition-opacity"
+              style={{ borderColor: '#2a2d3e', color: '#94a3b8', backgroundColor: 'transparent' }}
+            >
+              + Add transaction
+            </button>
+            <button
+              onClick={() => setShowImport(true)}
+              className="px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
+            >
+              Import CSV
+            </button>
+          </div>
         </div>
 
         {/* Summary bar */}
@@ -320,6 +331,16 @@ export default function TransactionsPage({ uid, goals, obligations, buckets, cat
           buckets={buckets}
           categoryRules={categoryRules}
           onClose={() => setShowImport(false)}
+        />
+      )}
+
+      {showAddTx && (
+        <AddTransactionModal
+          uid={uid}
+          goals={goals}
+          obligations={obligations}
+          buckets={buckets}
+          onClose={() => setShowAddTx(false)}
         />
       )}
     </div>
