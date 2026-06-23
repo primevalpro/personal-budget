@@ -1,10 +1,20 @@
 import { useState } from 'react';
 import { formatCurrency } from '../../utils/dateUtils';
+import EditIncomeModal from './EditIncomeModal';
 
 function formatDate(ts) {
   if (!ts) return '';
   const d = ts.toDate ? ts.toDate() : new Date(ts);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function PencilIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  );
 }
 
 function TrashIcon() {
@@ -18,9 +28,10 @@ function TrashIcon() {
   );
 }
 
-export default function IncomeLog({ income, onDelete }) {
+export default function IncomeLog({ income, onDelete, onEdit }) {
   const [open, setOpen] = useState(false);
   const [confirmId, setConfirmId] = useState(null);
+  const [editEntry, setEditEntry] = useState(null);
 
   const monthlyTotal = income.reduce((sum, e) => sum + (e.amount || 0), 0);
 
@@ -82,19 +93,40 @@ export default function IncomeLog({ income, onDelete }) {
                       <span className="text-xs truncate" style={{ color: '#64748b' }}>"{entry.note}"</span>
                     )}
                   </div>
-                  <button
-                    onClick={() => setConfirmId(entry.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
-                    style={{ color: '#ef4444' }}
-                    title="Delete"
-                  >
-                    <TrashIcon />
-                  </button>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => { setEditEntry(entry); setConfirmId(null); }}
+                      className="p-1 rounded hover:opacity-70"
+                      style={{ color: '#64748b' }}
+                      title="Edit"
+                    >
+                      <PencilIcon />
+                    </button>
+                    <button
+                      onClick={() => setConfirmId(entry.id)}
+                      className="p-1 rounded hover:opacity-70"
+                      style={{ color: '#ef4444' }}
+                      title="Delete"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
                 </div>
               )
             ))
           )}
         </div>
+      )}
+
+      {editEntry && (
+        <EditIncomeModal
+          entry={editEntry}
+          onClose={() => setEditEntry(null)}
+          onSave={async (id, amount, note, date) => {
+            await onEdit(id, amount, note, date);
+            setEditEntry(null);
+          }}
+        />
       )}
     </div>
   );

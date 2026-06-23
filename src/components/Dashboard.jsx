@@ -22,7 +22,7 @@ export default function Dashboard({ user }) {
   const [showIncomeModal, setShowIncomeModal] = useState(false);
 
   const { balance, updateBalance } = useBudget(uid);
-  const { income, addIncome, deleteIncome } = useIncome(uid);
+  const { income, addIncome, deleteIncome, updateIncome } = useIncome(uid);
   const {
     obligations,
     addObligation, updateObligation, deleteObligation, assignObligation, togglePaid,
@@ -139,6 +139,7 @@ export default function Dashboard({ user }) {
               cm={cm}
               income={income}
               onDeleteIncome={deleteIncome}
+              onEditIncome={updateIncome}
             />
             <PlannerPage
               uid={uid}

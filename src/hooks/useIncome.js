@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   collection, onSnapshot, doc, query, where,
-  serverTimestamp, writeBatch, increment,
+  serverTimestamp, writeBatch, increment, updateDoc, Timestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { currentMonth } from '../utils/dateUtils';
@@ -54,5 +54,16 @@ export function useIncome(uid) {
     await batch.commit();
   }
 
-  return { income, loading, addIncome, deleteIncome };
+  async function updateIncome(id, amount, note, date) {
+    // date is YYYY-MM-DD; derive month and update createdAt for display
+    const month = date.slice(0, 7);
+    await updateDoc(doc(db, 'users', uid, 'income', id), {
+      amount: Number(amount),
+      note: note || '',
+      month,
+      createdAt: Timestamp.fromDate(new Date(date + 'T12:00:00')),
+    });
+  }
+
+  return { income, loading, addIncome, deleteIncome, updateIncome };
 }
