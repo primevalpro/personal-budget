@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { writeBatch, doc, increment } from 'firebase/firestore';
+import { db } from '../firebase';
 import { useBudget } from '../hooks/useBudget';
 import { useIncome } from '../hooks/useIncome';
 import { useObligations } from '../hooks/useObligations';
@@ -35,6 +37,30 @@ export default function Dashboard({ user }) {
   } = useBuckets(uid);
   const { subcategories, addSubcategory, updateSubcategory, deleteSubcategory } = useSubcategories(uid);
   const { rules: categoryRules } = useCategoryRules(uid);
+
+  async function handleQuickAssign(assignments) {
+    const batch = writeBatch(db);
+    for (const { type, id, amount } of assignments) {
+      if (type === 'obligation') {
+        batch.update(doc(db, 'users', uid, 'obligations', id), {
+          assignedAmount: increment(amount),
+          assignedMonth: cm,
+        });
+      } else if (type === 'goal') {
+        batch.update(doc(db, 'users', uid, 'goals', id), {
+          assignedAmount: increment(amount),
+        });
+      } else if (type === 'bucket') {
+        const bkt = buckets.find(b => b.id === id);
+        batch.update(doc(db, 'users', uid, 'buckets', id), {
+          currentAmount: increment(amount),
+          monthlyAssigned: (bkt?.monthlyAssigned || 0) + amount,
+          monthlyAssignedMonth: cm,
+        });
+      }
+    }
+    await batch.commit();
+  }
 
   // Derived values — same formulas as before, never stored
   const assignedObligations = obligations
@@ -98,6 +124,11 @@ export default function Dashboard({ user }) {
             gapBreakdown={gapBreakdown}
             onEditBalance={updateBalance}
             onAddIncome={() => setShowIncomeModal(true)}
+            obligations={obligations}
+            goals={goals}
+            buckets={buckets}
+            currentMonth={cm}
+            onConfirm={handleQuickAssign}
           />
 
           <div className="flex-1 min-h-0 overflow-y-auto">

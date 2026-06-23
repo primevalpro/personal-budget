@@ -116,7 +116,6 @@ export default function TransactionsPage({ uid, goals, obligations, buckets, cat
   // ── Write helpers ──────────────────────────────────────────
 
   async function handleSaveCategory(tx, category) {
-    console.log('[Assign] tx.id:', tx.id, 'amount:', tx.amount, 'category:', category);
     const batch = writeBatch(db);
     batch.update(doc(db, 'users', uid, 'transactions', tx.id), {
       categoryType: category.categoryType,
@@ -124,12 +123,7 @@ export default function TransactionsPage({ uid, goals, obligations, buckets, cat
       categoryName: category.categoryName,
     });
     applyOne(batch, uid, category.categoryType, category.categoryId, tx.amount, obligations);
-    try {
-      await batch.commit();
-      console.log('[Assign] batch committed ok');
-    } catch (err) {
-      console.error('[Assign] batch commit FAILED:', err);
-    }
+    await batch.commit();
   }
 
   async function handleEdit(tx, newDescription, newCategory) {

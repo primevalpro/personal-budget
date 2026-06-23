@@ -1,13 +1,18 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { formatCurrency } from '../utils/dateUtils';
+import QuickAssignPopover from './QuickAssignPopover';
 
 export default function SummaryBar({
   balance, totalAssigned, readyToAssign,
   monthlyFundingGap, gapBreakdown,
   onEditBalance, onAddIncome,
+  obligations, goals, buckets, currentMonth, onConfirm,
 }) {
   const [editing, setEditing] = useState(false);
   const [input, setInput] = useState('');
+  const [showPopover, setShowPopover] = useState(false);
+  const [popoverAnchor, setPopoverAnchor] = useState(null);
+  const rtaRef = useRef(null);
 
   function startEdit() {
     setInput(String(balance));
@@ -23,6 +28,15 @@ export default function SummaryBar({
   function keyDown(e) {
     if (e.key === 'Enter') saveEdit();
     if (e.key === 'Escape') setEditing(false);
+  }
+
+  function togglePopover() {
+    if (showPopover) {
+      setShowPopover(false);
+    } else if (rtaRef.current) {
+      setPopoverAnchor(rtaRef.current.getBoundingClientRect());
+      setShowPopover(true);
+    }
   }
 
   const rtaColor = readyToAssign < 0 ? '#ef4444' : '#22c55e';
@@ -78,13 +92,42 @@ export default function SummaryBar({
       {divider}
 
       {/* Ready to Assign */}
-      <div className="flex flex-col justify-center px-4 py-[6px] flex-shrink-0">
+      <div ref={rtaRef} className="flex flex-col justify-center px-4 py-[6px] flex-shrink-0">
         <span className={labelClass} style={{ color: labelColor }}>Ready to Assign</span>
-        <span className={valueClass} style={{ color: rtaColor }}>{formatCurrency(readyToAssign)}</span>
+        {readyToAssign > 0 ? (
+          <button
+            onClick={togglePopover}
+            className={`${valueClass} text-left`}
+            style={{
+              color: rtaColor,
+              textDecoration: 'underline',
+              textDecorationStyle: 'dotted',
+              textDecorationColor: rtaColor,
+            }}
+          >
+            {formatCurrency(readyToAssign)}
+          </button>
+        ) : (
+          <span className={valueClass} style={{ color: rtaColor }}>{formatCurrency(readyToAssign)}</span>
+        )}
         {readyToAssign < 0 && (
           <span className="text-[10px]" style={{ color: '#ef4444' }}>Over-assigned</span>
         )}
       </div>
+
+      {showPopover && popoverAnchor && (
+        <QuickAssignPopover
+          anchor={popoverAnchor}
+          anchorRef={rtaRef}
+          rta={readyToAssign}
+          obligations={obligations}
+          goals={goals}
+          buckets={buckets}
+          currentMonth={currentMonth}
+          onClose={() => setShowPopover(false)}
+          onConfirm={onConfirm}
+        />
+      )}
 
       {divider}
 
