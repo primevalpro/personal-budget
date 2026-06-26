@@ -122,7 +122,7 @@ export default function TransactionsPage({ uid, goals, obligations, buckets, cat
       categoryId: category.categoryId,
       categoryName: category.categoryName,
     });
-    applyOne(batch, uid, category.categoryType, category.categoryId, tx.amount, obligations);
+    applyOne(batch, uid, category.categoryType, category.categoryId, tx.amount);
     await batch.commit();
   }
 
@@ -136,7 +136,7 @@ export default function TransactionsPage({ uid, goals, obligations, buckets, cat
       categoryName: newCategory?.categoryName ?? null,
     });
     if (newCategory) {
-      applyOne(batch, uid, newCategory.categoryType, newCategory.categoryId, tx.amount, obligations);
+      applyOne(batch, uid, newCategory.categoryType, newCategory.categoryId, tx.amount);
     }
     await batch.commit();
   }

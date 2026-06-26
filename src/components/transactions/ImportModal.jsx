@@ -207,7 +207,7 @@ export default function ImportModal({ uid, goals, obligations, buckets, category
     const { importRows, nullExisting, freshRules } = reviewData;
     setStage('confirming');
     try {
-      const batch = buildImportBatch(uid, importRows, obligations);
+      const batch = buildImportBatch(uid, importRows);
 
       for (const row of nullExisting) {
         const match = findRuleMatch(row, freshRules);
@@ -218,7 +218,7 @@ export default function ImportModal({ uid, goals, obligations, buckets, category
             categoryId: match.categoryId,
             categoryName: match.categoryName || null,
           });
-          applyOne(batch, uid, match.categoryType, match.categoryId, row.amount, obligations);
+          applyOne(batch, uid, match.categoryType, match.categoryId, row.amount);
         }
       }
 

@@ -53,7 +53,7 @@ export default function AddTransactionModal({ uid, goals, obligations, buckets, 
         importedAt: serverTimestamp(),
       });
       if (category) {
-        applyOne(batch, uid, category.categoryType, category.categoryId, negativeAmount, obligations);
+        applyOne(batch, uid, category.categoryType, category.categoryId, negativeAmount);
       }
       await batch.commit();
       onClose();

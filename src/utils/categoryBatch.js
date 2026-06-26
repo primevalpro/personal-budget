@@ -3,22 +3,14 @@ import {
   getDoc, getDocs, query, where,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { currentMonth } from './dateUtils';
-
 // Apply a single category effect to an existing batch
-export function applyOne(batch, uid, categoryType, categoryId, amount, obligations) {
+export function applyOne(batch, uid, categoryType, categoryId, amount) {
   if (!categoryType || categoryType === 'skipped' || !categoryId) return;
   const abs = Math.abs(amount);
   if (categoryType === 'goal') {
     batch.update(doc(db, 'users', uid, 'goals', categoryId), {
       spentAmount: increment(abs),
     });
-  } else if (categoryType === 'obligation') {
-    const ob = obligations?.find(o => o.id === categoryId);
-    const newAssigned = (ob?.assignedAmount || 0) + abs;
-    const updates = { assignedAmount: increment(abs), assignedMonth: currentMonth() };
-    if (ob && newAssigned >= ob.amount) updates.paidMonth = currentMonth();
-    batch.update(doc(db, 'users', uid, 'obligations', categoryId), updates);
   } else if (categoryType === 'bucket') {
     batch.update(doc(db, 'users', uid, 'buckets', categoryId), {
       currentAmount: increment(-abs),
@@ -33,7 +25,6 @@ export async function reverseOne(batch, uid, tx) {
 
   let docRef;
   if (tx.categoryType === 'goal') docRef = doc(db, 'users', uid, 'goals', tx.categoryId);
-  else if (tx.categoryType === 'obligation') docRef = doc(db, 'users', uid, 'obligations', tx.categoryId);
   else if (tx.categoryType === 'bucket') docRef = doc(db, 'users', uid, 'buckets', tx.categoryId);
   else return;
 
@@ -43,20 +34,17 @@ export async function reverseOne(batch, uid, tx) {
   const abs = Math.abs(tx.amount);
   if (tx.categoryType === 'goal') {
     batch.update(docRef, { spentAmount: increment(-abs) });
-  } else if (tx.categoryType === 'obligation') {
-    batch.update(docRef, { assignedAmount: increment(-abs), paidMonth: '' });
   } else if (tx.categoryType === 'bucket') {
     batch.update(docRef, { currentAmount: increment(abs), txSpend: increment(-abs) });
   }
 }
 
 // Build and return a batch for a full CSV import
-export function buildImportBatch(uid, importRows, obligations) {
+export function buildImportBatch(uid, importRows) {
   const batch = writeBatch(db);
 
   const goalTotals = new Map();
   const bucketTotals = new Map();
-  const obligationTotals = new Map();
 
   for (const row of importRows) {
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
@@ -76,8 +64,6 @@ export function buildImportBatch(uid, importRows, obligations) {
       goalTotals.set(row.categoryId, (goalTotals.get(row.categoryId) || 0) + Math.abs(row.amount));
     } else if (row.categoryType === 'bucket' && row.categoryId) {
       bucketTotals.set(row.categoryId, (bucketTotals.get(row.categoryId) || 0) + Math.abs(row.amount));
-    } else if (row.categoryType === 'obligation' && row.categoryId) {
-      obligationTotals.set(row.categoryId, (obligationTotals.get(row.categoryId) || 0) + Math.abs(row.amount));
     }
   }
 
@@ -87,14 +73,6 @@ export function buildImportBatch(uid, importRows, obligations) {
   for (const [id, total] of bucketTotals) {
     batch.update(doc(db, 'users', uid, 'buckets', id), { currentAmount: increment(-total), txSpend: increment(total) });
   }
-  for (const [id, total] of obligationTotals) {
-    const ob = obligations.find(o => o.id === id);
-    const newAssigned = (ob?.assignedAmount || 0) + total;
-    const updates = { assignedAmount: increment(total), assignedMonth: currentMonth() };
-    if (ob && newAssigned >= ob.amount) updates.paidMonth = currentMonth();
-    batch.update(doc(db, 'users', uid, 'obligations', id), updates);
-  }
-
   return batch;
 }
 
