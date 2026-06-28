@@ -51,7 +51,7 @@ function CategorySelect({ goals, obligations, buckets, value, onChange }) {
           <option key={b.id} value={`bucket:${b.id}`}>{b.name}</option>
         ))}
       </optgroup>
-      <option value="skipped:">Skipped</option>
+      <option value="excluded:">Excluded</option>
     </select>
   );
 }
@@ -61,7 +61,7 @@ function resolveCategoryValue(val, goals, obligations, buckets) {
   const colonIdx = val.indexOf(':');
   const type = val.slice(0, colonIdx);
   const id = val.slice(colonIdx + 1) || null;
-  if (type === 'skipped') return { categoryType: 'skipped', categoryId: null, categoryName: null };
+  if (type === 'excluded' || type === 'skipped') return { categoryType: 'excluded', categoryId: null, categoryName: null };
   let name = '';
   if (type === 'goal') name = goals.find(g => g.id === id)?.category || '';
   else if (type === 'obligation') name = obligations.find(o => o.id === id)?.name || '';
@@ -71,7 +71,8 @@ function resolveCategoryValue(val, goals, obligations, buckets) {
 
 function encodeCategoryValue(tx) {
   if (!tx.categoryType) return '';
-  return `${tx.categoryType}:${tx.categoryId || ''}`;
+  const type = tx.categoryType === 'skipped' ? 'excluded' : tx.categoryType;
+  return `${type}:${tx.categoryId || ''}`;
 }
 
 // ── Uncategorized / Skipped row (dropdown shown by default) ───

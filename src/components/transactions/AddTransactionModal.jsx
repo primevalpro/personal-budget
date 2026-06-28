@@ -13,7 +13,7 @@ function resolveCategory(val, goals, obligations, buckets) {
   const idx = val.indexOf(':');
   const type = val.slice(0, idx);
   const id = val.slice(idx + 1) || null;
-  if (type === 'skipped') return { categoryType: 'skipped', categoryId: null, categoryName: null };
+  if (type === 'excluded' || type === 'skipped') return { categoryType: 'excluded', categoryId: null, categoryName: null };
   let name = '';
   if (type === 'goal') name = goals.find(g => g.id === id)?.category || '';
   else if (type === 'obligation') name = obligations.find(o => o.id === id)?.name || '';
@@ -160,7 +160,7 @@ export default function AddTransactionModal({ uid, goals, obligations, buckets, 
                 </optgroup>
               )}
               <optgroup label="Other">
-                <option value="skipped:">Skip / ignore</option>
+                <option value="excluded:">Excluded</option>
               </optgroup>
             </select>
           </div>

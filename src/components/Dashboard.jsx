@@ -2,14 +2,12 @@ import { useState } from 'react';
 import { writeBatch, doc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useBudget } from '../hooks/useBudget';
-import { useIncome } from '../hooks/useIncome';
 import { useObligations } from '../hooks/useObligations';
 import { useGoals } from '../hooks/useGoals';
 import { useBuckets } from '../hooks/useBuckets';
 import { useSubcategories } from '../hooks/useSubcategories';
 import { useCategoryRules } from '../hooks/useCategoryRules';
 import SummaryBar from './SummaryBar';
-import AddIncomeModal from './AddIncomeModal';
 import OverviewPage from '../pages/OverviewPage';
 import PlannerPage from '../pages/PlannerPage';
 import TransactionsPage from '../pages/TransactionsPage';
@@ -19,10 +17,8 @@ export default function Dashboard({ user }) {
   const uid = user.uid;
   const cm = currentMonth();
   const [activePage, setActivePage] = useState('budget');
-  const [showIncomeModal, setShowIncomeModal] = useState(false);
 
-  const { balance, updateBalance } = useBudget(uid);
-  const { income, addIncome, deleteIncome, updateIncome } = useIncome(uid);
+  const { balance, totalImportedIncome, updateBalance } = useBudget(uid);
   const {
     obligations,
     addObligation, updateObligation, deleteObligation, assignObligation, togglePaid,
@@ -62,14 +58,13 @@ export default function Dashboard({ user }) {
     await batch.commit();
   }
 
-  // Derived values — same formulas as before, never stored
   const assignedObligations = obligations
     .filter(o => o.assignedMonth === cm)
     .reduce((sum, o) => sum + (o.assignedAmount || 0), 0);
   const assignedGoals = goals.reduce((sum, g) => sum + (g.assignedAmount || 0), 0);
   const assignedBuckets = buckets.reduce((sum, b) => sum + (b.currentAmount || 0), 0);
   const totalAssigned = assignedObligations + assignedGoals + assignedBuckets;
-  const readyToAssign = balance - totalAssigned;
+  const readyToAssign = totalImportedIncome - totalAssigned;
 
   const totalObCommitted = obligations.reduce((sum, o) => sum + (o.amount || 0), 0);
   const obGap = Math.max(0, totalObCommitted - assignedObligations);
@@ -82,14 +77,12 @@ export default function Dashboard({ user }) {
   const monthlyFundingGap = obGap + goalsGap + bucketsGap;
   const gapBreakdown = { obligations: obGap, goals: goalsGap, buckets: bucketsGap };
 
-  // Subcategories filtered by meta-category
   const obligationSubcats = subcategories.filter(s => s.metaCategory === 'obligations');
   const goalSubcats = subcategories.filter(s => s.metaCategory === 'goals');
   const bucketSubcats = subcategories.filter(s => s.metaCategory === 'buckets');
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-      {/* Top-level tab strip */}
       <div className="flex border-b flex-shrink-0" style={{ borderColor: '#2a2d3e', backgroundColor: '#1a1d27' }}>
         {['budget', 'transactions'].map(t => (
           <button
@@ -123,7 +116,6 @@ export default function Dashboard({ user }) {
             monthlyFundingGap={monthlyFundingGap}
             gapBreakdown={gapBreakdown}
             onEditBalance={updateBalance}
-            onAddIncome={() => setShowIncomeModal(true)}
             obligations={obligations}
             goals={goals}
             buckets={buckets}
@@ -137,9 +129,6 @@ export default function Dashboard({ user }) {
               goals={goals}
               buckets={buckets}
               cm={cm}
-              income={income}
-              onDeleteIncome={deleteIncome}
-              onEditIncome={updateIncome}
             />
             <PlannerPage
               uid={uid}
@@ -173,13 +162,6 @@ export default function Dashboard({ user }) {
               deleteSubcategory={deleteSubcategory}
             />
           </div>
-
-          {showIncomeModal && (
-            <AddIncomeModal
-              onClose={() => setShowIncomeModal(false)}
-              onAdd={addIncome}
-            />
-          )}
         </>
       )}
     </div>

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export function useBudget(uid) {
   const [balance, setBalance] = useState(0);
+  const [totalImportedIncome, setTotalImportedIncome] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -11,10 +12,17 @@ export function useBudget(uid) {
     const ref = doc(db, 'users', uid, 'profile', 'budget');
     const unsub = onSnapshot(ref, snap => {
       if (!snap.exists()) {
-        setDoc(ref, { balance: 0, updatedAt: serverTimestamp() });
+        setDoc(ref, { balance: 0, totalImportedIncome: 0, updatedAt: serverTimestamp() });
         return;
       }
-      setBalance(snap.data().balance ?? 0);
+      const data = snap.data();
+      setBalance(data.balance ?? 0);
+      if (data.totalImportedIncome === undefined) {
+        updateDoc(ref, { totalImportedIncome: 0 });
+        setTotalImportedIncome(0);
+      } else {
+        setTotalImportedIncome(data.totalImportedIncome);
+      }
       setLoading(false);
     });
     return unsub;
@@ -28,5 +36,5 @@ export function useBudget(uid) {
     );
   }
 
-  return { balance, loading, updateBalance };
+  return { balance, totalImportedIncome, loading, updateBalance };
 }

@@ -2,10 +2,19 @@ import { useState, useRef } from 'react';
 import { formatCurrency } from '../utils/dateUtils';
 import QuickAssignPopover from './QuickAssignPopover';
 
+function PencilIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  );
+}
+
 export default function SummaryBar({
   balance, totalAssigned, readyToAssign,
   monthlyFundingGap, gapBreakdown,
-  onEditBalance, onAddIncome,
+  onEditBalance,
   obligations, goals, buckets, currentMonth, onConfirm,
 }) {
   const [editing, setEditing] = useState(false);
@@ -70,14 +79,17 @@ export default function SummaryBar({
             autoFocus
           />
         ) : (
-          <button
-            onClick={startEdit}
-            className={`${valueClass} text-left hover:opacity-70 transition-opacity`}
-            style={{ color: '#f1f5f9' }}
-            title="Click to edit balance"
-          >
-            {formatCurrency(balance)}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <span className={valueClass} style={{ color: '#f1f5f9' }}>{formatCurrency(balance)}</span>
+            <button
+              onClick={startEdit}
+              className="hover:opacity-70 transition-opacity flex-shrink-0"
+              style={{ color: '#64748b' }}
+              title="Edit balance"
+            >
+              <PencilIcon />
+            </button>
+          </div>
         )}
       </div>
 
@@ -154,17 +166,6 @@ export default function SummaryBar({
             )}
           </>
         )}
-      </div>
-
-      {/* Add Income */}
-      <div className="flex items-center px-4 py-[6px] flex-shrink-0">
-        <button
-          onClick={onAddIncome}
-          className="text-xs px-3 py-[5px] rounded-lg font-medium hover:opacity-90 transition-opacity whitespace-nowrap"
-          style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
-        >
-          + Add Income
-        </button>
       </div>
     </div>
   );

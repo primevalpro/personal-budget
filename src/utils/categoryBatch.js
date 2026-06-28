@@ -3,9 +3,14 @@ import {
   getDoc, getDocs, query, where,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+
+function isExcluded(categoryType) {
+  return categoryType === 'excluded' || categoryType === 'skipped';
+}
+
 // Apply a single category effect to an existing batch
 export function applyOne(batch, uid, categoryType, categoryId, amount) {
-  if (!categoryType || categoryType === 'skipped' || !categoryId) return;
+  if (!categoryType || isExcluded(categoryType) || !categoryId) return;
   const abs = Math.abs(amount);
   if (categoryType === 'goal') {
     batch.update(doc(db, 'users', uid, 'goals', categoryId), {
@@ -21,7 +26,7 @@ export function applyOne(batch, uid, categoryType, categoryId, amount) {
 
 // Reverse a category effect on an existing batch — checks existence to skip stale refs
 export async function reverseOne(batch, uid, tx) {
-  if (!tx.categoryType || tx.categoryType === 'skipped' || !tx.categoryId) return;
+  if (!tx.categoryType || isExcluded(tx.categoryType) || !tx.categoryId) return;
 
   let docRef;
   if (tx.categoryType === 'goal') docRef = doc(db, 'users', uid, 'goals', tx.categoryId);
@@ -29,7 +34,7 @@ export async function reverseOne(batch, uid, tx) {
   else return;
 
   const snap = await getDoc(docRef);
-  if (!snap.exists()) return; // old doc gone — skip reversal silently
+  if (!snap.exists()) return;
 
   const abs = Math.abs(tx.amount);
   if (tx.categoryType === 'goal') {
@@ -45,6 +50,8 @@ export function buildImportBatch(uid, importRows) {
 
   const goalTotals = new Map();
   const bucketTotals = new Map();
+  let balanceDelta = 0;
+  let incomeDelta = 0;
 
   for (const row of importRows) {
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
@@ -60,6 +67,11 @@ export function buildImportBatch(uid, importRows) {
       importedAt: serverTimestamp(),
     });
 
+    balanceDelta += row.amount;
+    if (row.amount > 0) {
+      incomeDelta += row.amount;
+    }
+
     if (row.categoryType === 'goal' && row.categoryId) {
       goalTotals.set(row.categoryId, (goalTotals.get(row.categoryId) || 0) + Math.abs(row.amount));
     } else if (row.categoryType === 'bucket' && row.categoryId) {
@@ -73,6 +85,19 @@ export function buildImportBatch(uid, importRows) {
   for (const [id, total] of bucketTotals) {
     batch.update(doc(db, 'users', uid, 'buckets', id), { currentAmount: increment(-total), txSpend: increment(total) });
   }
+
+  if (importRows.length > 0) {
+    batch.set(
+      doc(db, 'users', uid, 'profile', 'budget'),
+      {
+        balance: increment(balanceDelta),
+        totalImportedIncome: increment(incomeDelta),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }
+
   return batch;
 }
 

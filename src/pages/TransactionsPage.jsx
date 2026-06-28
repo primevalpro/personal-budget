@@ -48,7 +48,7 @@ function formatLastImport(transactions) {
 function groupByCategory(txs) {
   const map = new Map();
   for (const tx of txs) {
-    if (!tx.categoryType || tx.categoryType === 'skipped') continue;
+    if (!tx.categoryType || tx.categoryType === 'skipped' || tx.categoryType === 'excluded') continue;
     const key = `${tx.categoryType}:${tx.categoryId}`;
     if (!map.has(key)) {
       map.set(key, { categoryType: tx.categoryType, categoryId: tx.categoryId, categoryName: tx.categoryName, txs: [] });
@@ -97,8 +97,12 @@ export default function TransactionsPage({ uid, goals, obligations, buckets, cat
   const goalIds = new Set(goals.map(g => g.id));
   const obIds = new Set(obligations.map(o => o.id));
   const bucketIds = new Set(buckets.map(b => b.id));
+  function isExcluded(categoryType) {
+    return categoryType === 'excluded' || categoryType === 'skipped';
+  }
+
   function isOrphaned(tx) {
-    if (!tx.categoryType || tx.categoryType === 'skipped') return false;
+    if (!tx.categoryType || isExcluded(tx.categoryType)) return false;
     if (tx.categoryType === 'goal') return !goalIds.has(tx.categoryId);
     if (tx.categoryType === 'obligation') return !obIds.has(tx.categoryId);
     if (tx.categoryType === 'bucket') return !bucketIds.has(tx.categoryId);
@@ -106,10 +110,10 @@ export default function TransactionsPage({ uid, goals, obligations, buckets, cat
   }
 
   const uncategorized = transactions.filter(tx => tx.categoryType === null || isOrphaned(tx));
-  const skipped = transactions.filter(tx => tx.categoryType === 'skipped');
-  const categorized = transactions.filter(tx => tx.categoryType && tx.categoryType !== 'skipped' && !isOrphaned(tx));
+  const excluded = transactions.filter(tx => isExcluded(tx.categoryType));
+  const categorized = transactions.filter(tx => tx.categoryType && !isExcluded(tx.categoryType) && !isOrphaned(tx));
 
-  const nonSkipped = transactions.filter(tx => tx.categoryType !== 'skipped');
+  const nonSkipped = transactions.filter(tx => !isExcluded(tx.categoryType));
   const totalSpent = nonSkipped.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
   const lastImport = formatLastImport(transactions);
 
@@ -314,13 +318,13 @@ export default function TransactionsPage({ uid, goals, obligations, buckets, cat
           </div>
         )}
 
-        {/* Skipped section */}
-        {!loading && skipped.length > 0 && (
+        {/* Excluded section */}
+        {!loading && excluded.length > 0 && (
           <CollapsibleGroup
-            title={`Skipped · ${skipped.length}`}
+            title={`Excluded · ${excluded.length}`}
             totalAmount={null}
           >
-            {skipped.map((tx, i) => (
+            {excluded.map((tx, i) => (
               <div key={tx.id} style={i > 0 ? { borderTop: '1px solid #2a2d3e' } : {}}>
                 <AssignableRow
                   tx={tx}

@@ -180,8 +180,8 @@ export default function ImportModal({ uid, goals, obligations, buckets, category
       const importRows = newRows.map(row => {
         const skipReason = getSkipReason(row);
         if (skipReason) {
-          console.log('[Import] skip:', row.originalDescription, '—', skipReason);
-          return { ...row, categoryType: 'skipped', categoryId: null, categoryName: null };
+          console.log('[Import] exclude:', row.originalDescription, '—', skipReason);
+          return { ...row, categoryType: 'excluded', categoryId: null, categoryName: null };
         }
         const match = findRuleMatch(row, freshRules);
         if (match && match.categoryType && match.categoryId) {
@@ -289,9 +289,9 @@ export default function ImportModal({ uid, goals, obligations, buckets, category
             <div className="flex flex-col gap-1">
               {reviewData.importRows.length > 0 && (
                 <p className="text-sm" style={{ color: '#f1f5f9' }}>
-                  {reviewData.importRows.filter(r => r.categoryType !== 'skipped').length} new transaction{reviewData.importRows.filter(r => r.categoryType !== 'skipped').length !== 1 ? 's' : ''} to import
-                  {reviewData.importRows.filter(r => r.categoryType === 'skipped').length > 0 &&
-                    `, ${reviewData.importRows.filter(r => r.categoryType === 'skipped').length} auto-skipped`}
+                  {reviewData.importRows.filter(r => r.categoryType !== 'excluded').length} new transaction{reviewData.importRows.filter(r => r.categoryType !== 'excluded').length !== 1 ? 's' : ''} to import
+                  {reviewData.importRows.filter(r => r.categoryType === 'excluded').length > 0 &&
+                    `, ${reviewData.importRows.filter(r => r.categoryType === 'excluded').length} auto-excluded`}
                 </p>
               )}
               {reviewData.nullExisting.length > 0 && (
