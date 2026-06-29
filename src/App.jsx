@@ -4,10 +4,12 @@ import { auth } from './firebase';
 import LoginScreen from './components/LoginScreen';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
+import SettingsPage from './pages/SettingsPage';
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activePage, setActivePage] = useState('main');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -34,8 +36,12 @@ export default function App() {
       className="flex flex-col min-h-screen md:h-screen md:overflow-hidden"
       style={{ backgroundColor: '#0f1117' }}
     >
-      <Header user={user} />
-      <Dashboard user={user} />
+      <Header user={user} onSettings={() => setActivePage('settings')} />
+      {activePage === 'settings' ? (
+        <SettingsPage uid={user.uid} onBack={() => setActivePage('main')} />
+      ) : (
+        <Dashboard user={user} />
+      )}
     </div>
   );
 }
