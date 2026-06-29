@@ -69,7 +69,7 @@ async function resetBudget(uid) {
     balance: 0,
     totalImportedIncome: 0,
     updatedAt: serverTimestamp(),
-  });
+  }, { merge: true });
   await batch.commit();
 }
 
