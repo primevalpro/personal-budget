@@ -1,6 +1,12 @@
-import { useState } from 'react';
-import { collection, getDocs, writeBatch, doc, serverTimestamp } from 'firebase/firestore';
+import { useState, useEffect } from 'react';
+import {
+  collection, getDocs, writeBatch, doc, getDoc,
+  query, where, serverTimestamp,
+} from 'firebase/firestore';
 import { db } from '../firebase';
+import { currentMonth, formatCurrency } from '../utils/dateUtils';
+
+// ── Wipe helpers ────────────────────────────────────────────────
 
 const WIPE_TARGETS = [
   { id: 'transactions', label: 'Transactions',    description: 'Clears all imported and manual transaction history' },
@@ -78,11 +84,329 @@ async function executeWipe(uid, id) {
   }
 }
 
+// ── Clean Slate Modal ───────────────────────────────────────────
+
+function CleanSlateModal({ uid, onClose }) {
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [obligations, setObligations] = useState([]);
+  // nonObAssigned = goal + bucket portions; doesn't change during the modal
+  const [nonObAssigned, setNonObAssigned] = useState(0);
+  // totalAssigned at load time — used for "Calculate from assignments" quick fill
+  const [loadedTotalAssigned, setLoadedTotalAssigned] = useState(0);
+
+  const [balanceInput, setBalanceInput] = useState('');
+  const [rtaInput, setRtaInput] = useState('');
+  const [checkedObs, setCheckedObs] = useState(new Set());
+
+  useEffect(() => {
+    async function load() {
+      const cm = currentMonth();
+      const [budgetSnap, obSnap, goalSnap, bucketSnap] = await Promise.all([
+        getDoc(doc(db, 'users', uid, 'profile', 'budget')),
+        getDocs(collection(db, 'users', uid, 'obligations')),
+        getDocs(query(collection(db, 'users', uid, 'goals'), where('month', '==', cm))),
+        getDocs(collection(db, 'users', uid, 'buckets')),
+      ]);
+
+      const bal = budgetSnap.data()?.balance ?? 0;
+      setBalanceInput(String(bal));
+
+      const obs = obSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setObligations(obs);
+
+      const obAssigned = obs
+        .filter(o => o.assignedMonth === cm)
+        .reduce((s, o) => s + (o.assignedAmount || 0), 0);
+      const goalAssigned = goalSnap.docs.reduce((s, d) => s + (d.data().assignedAmount || 0), 0);
+      const bucketAssigned = bucketSnap.docs.reduce((s, d) => {
+        const b = d.data();
+        return s + (b.currentAmount || 0) + (b.txSpend || 0);
+      }, 0);
+
+      const nonOb = goalAssigned + bucketAssigned;
+      setNonObAssigned(nonOb);
+      setLoadedTotalAssigned(obAssigned + nonOb);
+      setLoading(false);
+    }
+    load();
+  }, [uid]);
+
+  function toggleOb(id) {
+    setCheckedObs(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  const allSelected = obligations.length > 0 && checkedObs.size === obligations.length;
+
+  function toggleAll() {
+    setCheckedObs(allSelected ? new Set() : new Set(obligations.map(o => o.id)));
+  }
+
+  async function handleFinish() {
+    setSaving(true);
+    try {
+      const cm = currentMonth();
+      const balVal = Number(balanceInput) || 0;
+      const rtaVal = Number(rtaInput) || 0;
+
+      // Recompute obligation contribution using final state (checked obs at full amount)
+      const obAssignedFinal = obligations.reduce((s, o) => {
+        if (checkedObs.has(o.id)) return s + (o.amount || 0);
+        if (o.assignedMonth === cm) return s + (o.assignedAmount || 0);
+        return s;
+      }, 0);
+      const finalTotalAssigned = obAssignedFinal + nonObAssigned;
+
+      const batch = writeBatch(db);
+
+      batch.update(doc(db, 'users', uid, 'profile', 'budget'), {
+        balance: balVal,
+        totalImportedIncome: rtaVal + finalTotalAssigned,
+        updatedAt: serverTimestamp(),
+      });
+
+      for (const ob of obligations) {
+        if (checkedObs.has(ob.id)) {
+          batch.update(doc(db, 'users', uid, 'obligations', ob.id), {
+            assignedAmount: ob.amount,
+            assignedMonth: cm,
+            paidMonth: cm,
+          });
+        }
+      }
+
+      await batch.commit();
+      setStep('done');
+    } catch (err) {
+      console.error('Clean slate setup failed:', err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+      <div
+        className="w-full max-w-sm rounded-2xl p-6 flex flex-col gap-5 overflow-y-auto"
+        style={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3e', maxHeight: '90vh' }}
+      >
+        {step === 'done' && (
+          <>
+            <div>
+              <h2 className="text-base font-semibold" style={{ color: '#f1f5f9' }}>You're all set.</h2>
+              <p className="text-sm mt-2" style={{ color: '#94a3b8' }}>
+                Your balance, RTA, and paid obligations have been updated.
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
+            >
+              Done
+            </button>
+          </>
+        )}
+
+        {step !== 'done' && loading && (
+          <div className="flex items-center justify-center py-10">
+            <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#6366f1', borderTopColor: 'transparent' }} />
+          </div>
+        )}
+
+        {step !== 'done' && !loading && (
+          <>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold" style={{ color: '#f1f5f9' }}>Clean Slate Setup</h2>
+              <span className="text-xs tabular-nums" style={{ color: '#64748b' }}>Step {step} of 3</span>
+            </div>
+
+            {/* Step 1 — Balance */}
+            {step === 1 && (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium" style={{ color: '#f1f5f9' }}>
+                    What is your current checking account balance?
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: '#64748b' }}>$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={balanceInput}
+                      onChange={e => setBalanceInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && balanceInput) setStep(2); }}
+                      autoFocus
+                      className="w-full border rounded-xl pl-7 pr-3 py-2.5 text-sm tabular-nums outline-none"
+                      style={{ backgroundColor: '#0f1117', borderColor: '#2a2d3e', color: '#f1f5f9' }}
+                    />
+                  </div>
+                  <p className="text-xs" style={{ color: '#64748b' }}>
+                    Enter the exact amount shown in your USAA account right now.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setStep(2)}
+                  disabled={balanceInput === '' || isNaN(Number(balanceInput))}
+                  className="py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-30"
+                  style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+
+            {/* Step 2 — RTA */}
+            {step === 2 && (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium" style={{ color: '#f1f5f9' }}>
+                    How much of that balance is unallocated?
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: '#64748b' }}>$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={rtaInput}
+                      onChange={e => setRtaInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && rtaInput !== '') setStep(3); }}
+                      autoFocus
+                      className="w-full border rounded-xl pl-7 pr-3 py-2.5 text-sm tabular-nums outline-none"
+                      style={{ backgroundColor: '#0f1117', borderColor: '#2a2d3e', color: '#f1f5f9' }}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setRtaInput(balanceInput)}
+                      className="flex-1 py-1.5 rounded-lg text-xs border hover:opacity-80 transition-opacity"
+                      style={{ borderColor: '#2a2d3e', color: '#94a3b8' }}
+                    >
+                      Use full balance
+                    </button>
+                    <button
+                      onClick={() => setRtaInput(String((Number(balanceInput) - loadedTotalAssigned).toFixed(2)))}
+                      className="flex-1 py-1.5 rounded-lg text-xs border hover:opacity-80 transition-opacity"
+                      style={{ borderColor: '#2a2d3e', color: '#94a3b8' }}
+                    >
+                      Calculate from assignments
+                    </button>
+                  </div>
+                  <p className="text-xs" style={{ color: '#64748b' }}>
+                    This becomes your Ready to Assign starting point. If you've already assigned money to categories, use "Calculate from assignments" to account for that.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setStep(1)}
+                    className="px-4 py-2.5 rounded-xl text-sm border hover:opacity-80 transition-opacity"
+                    style={{ borderColor: '#2a2d3e', color: '#64748b' }}
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={() => setStep(3)}
+                    disabled={rtaInput === '' || isNaN(Number(rtaInput))}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-30"
+                    style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3 — Paid obligations */}
+            {step === 3 && (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium" style={{ color: '#f1f5f9' }}>
+                    Which obligations have already been paid this month?
+                  </label>
+                  {obligations.length === 0 ? (
+                    <p className="text-sm" style={{ color: '#64748b' }}>
+                      No obligations set up yet — you can add them from the Budget tab.
+                    </p>
+                  ) : (
+                    <>
+                      <button
+                        onClick={toggleAll}
+                        className="self-start text-xs hover:opacity-70 transition-opacity"
+                        style={{ color: '#6366f1' }}
+                      >
+                        {allSelected ? 'Clear all' : 'Select all'}
+                      </button>
+                      <div
+                        className="flex flex-col rounded-xl overflow-hidden overflow-y-auto"
+                        style={{ border: '1px solid #2a2d3e', maxHeight: '200px' }}
+                      >
+                        {obligations.map((ob, i) => (
+                          <label
+                            key={ob.id}
+                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:opacity-80 transition-opacity"
+                            style={i > 0 ? { borderTop: '1px solid #2a2d3e' } : {}}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checkedObs.has(ob.id)}
+                              onChange={() => toggleOb(ob.id)}
+                              className="w-4 h-4 flex-shrink-0 accent-indigo-500"
+                            />
+                            <span className="flex-1 text-sm" style={{ color: '#f1f5f9' }}>{ob.name}</span>
+                            <span className="text-sm tabular-nums flex-shrink-0" style={{ color: '#94a3b8' }}>
+                              {formatCurrency(ob.amount || 0)}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  <p className="text-xs" style={{ color: '#64748b' }}>
+                    Checked obligations will be fully funded and marked as paid for the current month.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setStep(2)}
+                    disabled={saving}
+                    className="px-4 py-2.5 rounded-xl text-sm border hover:opacity-80 transition-opacity disabled:opacity-50"
+                    style={{ borderColor: '#2a2d3e', color: '#64748b' }}
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleFinish}
+                    disabled={saving}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                    style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
+                  >
+                    {saving ? 'Saving…' : 'Finish'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Settings Page ───────────────────────────────────────────────
+
 export default function SettingsPage({ uid, onBack }) {
   const [selected, setSelected] = useState(new Set());
   const [showConfirm, setShowConfirm] = useState(false);
   const [wiping, setWiping] = useState(false);
-  const [done, setDone] = useState(false);
+  const [wipeDone, setWipeDone] = useState(false);
+  const [showCleanSlate, setShowCleanSlate] = useState(false);
 
   function toggle(id) {
     setSelected(prev => {
@@ -90,7 +414,7 @@ export default function SettingsPage({ uid, onBack }) {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-    setDone(false);
+    setWipeDone(false);
   }
 
   async function handleWipe() {
@@ -100,7 +424,7 @@ export default function SettingsPage({ uid, onBack }) {
         await executeWipe(uid, id);
       }
       setSelected(new Set());
-      setDone(true);
+      setWipeDone(true);
     } finally {
       setWiping(false);
       setShowConfirm(false);
@@ -122,6 +446,25 @@ export default function SettingsPage({ uid, onBack }) {
             ← Back
           </button>
           <h1 className="text-xl font-semibold" style={{ color: '#f1f5f9' }}>Settings</h1>
+        </div>
+
+        {/* Clean Slate Setup */}
+        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #2a2d3e' }}>
+          <div className="px-5 py-4" style={{ backgroundColor: '#1a1d27' }}>
+            <h2 className="text-base font-semibold" style={{ color: '#f1f5f9' }}>Clean Slate Setup</h2>
+            <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>
+              Use this after a data wipe to establish your starting balance and mark obligations already paid this month.
+            </p>
+          </div>
+          <div className="px-5 py-4" style={{ borderTop: '1px solid #2a2d3e', backgroundColor: '#0f1117' }}>
+            <button
+              onClick={() => setShowCleanSlate(true)}
+              className="px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: '#6366f1', color: '#f1f5f9' }}
+            >
+              Run Setup
+            </button>
+          </div>
         </div>
 
         {/* Danger Zone */}
@@ -163,7 +506,7 @@ export default function SettingsPage({ uid, onBack }) {
             >
               Wipe Selected Data
             </button>
-            {done && (
+            {wipeDone && (
               <span className="text-sm" style={{ color: '#22c55e' }}>
                 Done. Selected data has been wiped.
               </span>
@@ -172,6 +515,7 @@ export default function SettingsPage({ uid, onBack }) {
         </div>
       </div>
 
+      {/* Wipe confirm modal */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
           <div
@@ -212,6 +556,11 @@ export default function SettingsPage({ uid, onBack }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Clean Slate modal */}
+      {showCleanSlate && (
+        <CleanSlateModal uid={uid} onClose={() => setShowCleanSlate(false)} />
       )}
     </div>
   );
