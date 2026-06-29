@@ -3,12 +3,12 @@ import { collection, getDocs, writeBatch, doc, serverTimestamp } from 'firebase/
 import { db } from '../firebase';
 
 const WIPE_TARGETS = [
-  { id: 'transactions',  label: 'Transactions',    description: 'All imported and manual transactions' },
-  { id: 'obligations',   label: 'Obligations',      description: 'All monthly obligations' },
-  { id: 'goals',         label: 'Monthly Budgets',  description: 'All monthly budget categories' },
-  { id: 'buckets',       label: 'Buckets',          description: 'All savings buckets' },
-  { id: 'balance',       label: 'Balance & RTA',    description: 'Resets balance and totalImportedIncome to 0' },
-  { id: 'income',        label: 'Income Log',       description: 'All manual income entries (legacy)' },
+  { id: 'transactions', label: 'Transactions',    description: 'Clears all imported and manual transaction history' },
+  { id: 'obligations',  label: 'Obligations',     description: 'Resets all obligation funding and paid state (names and amounts kept)' },
+  { id: 'goals',        label: 'Monthly Budgets', description: 'Resets all budget assigned and spent amounts (names and targets kept)' },
+  { id: 'buckets',      label: 'Buckets',         description: 'Resets all bucket balances and monthly assignments (names and targets kept)' },
+  { id: 'balance',      label: 'Balance & RTA',   description: 'Resets checking account balance and imported income to zero' },
+  { id: 'income',       label: 'Income Log',      description: 'Clears all legacy manual income entries' },
 ];
 
 async function deleteCollection(uid, collectionName) {
@@ -21,6 +21,42 @@ async function deleteCollection(uid, collectionName) {
   }
 }
 
+async function resetObligations(uid) {
+  const snap = await getDocs(collection(db, 'users', uid, 'obligations'));
+  const LIMIT = 499;
+  for (let i = 0; i < snap.docs.length; i += LIMIT) {
+    const batch = writeBatch(db);
+    snap.docs.slice(i, i + LIMIT).forEach(d =>
+      batch.update(d.ref, { assignedAmount: 0, assignedMonth: '', paidMonth: '' })
+    );
+    await batch.commit();
+  }
+}
+
+async function resetGoals(uid) {
+  const snap = await getDocs(collection(db, 'users', uid, 'goals'));
+  const LIMIT = 499;
+  for (let i = 0; i < snap.docs.length; i += LIMIT) {
+    const batch = writeBatch(db);
+    snap.docs.slice(i, i + LIMIT).forEach(d =>
+      batch.update(d.ref, { assignedAmount: 0, spentAmount: 0 })
+    );
+    await batch.commit();
+  }
+}
+
+async function resetBuckets(uid) {
+  const snap = await getDocs(collection(db, 'users', uid, 'buckets'));
+  const LIMIT = 499;
+  for (let i = 0; i < snap.docs.length; i += LIMIT) {
+    const batch = writeBatch(db);
+    snap.docs.slice(i, i + LIMIT).forEach(d =>
+      batch.update(d.ref, { currentAmount: 0, monthlyAssigned: 0, monthlyAssignedMonth: '' })
+    );
+    await batch.commit();
+  }
+}
+
 async function resetBudget(uid) {
   const batch = writeBatch(db);
   batch.set(doc(db, 'users', uid, 'profile', 'budget'), {
@@ -29,6 +65,17 @@ async function resetBudget(uid) {
     updatedAt: serverTimestamp(),
   });
   await batch.commit();
+}
+
+async function executeWipe(uid, id) {
+  switch (id) {
+    case 'transactions': return deleteCollection(uid, 'transactions');
+    case 'obligations':  return resetObligations(uid);
+    case 'goals':        return resetGoals(uid);
+    case 'buckets':      return resetBuckets(uid);
+    case 'balance':      return resetBudget(uid);
+    case 'income':       return deleteCollection(uid, 'income');
+  }
 }
 
 export default function SettingsPage({ uid, onBack }) {
@@ -50,8 +97,7 @@ export default function SettingsPage({ uid, onBack }) {
     setWiping(true);
     try {
       for (const id of selected) {
-        if (id === 'balance') await resetBudget(uid);
-        else await deleteCollection(uid, id);
+        await executeWipe(uid, id);
       }
       setSelected(new Set());
       setDone(true);
@@ -133,9 +179,12 @@ export default function SettingsPage({ uid, onBack }) {
             style={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3e' }}
           >
             <h2 className="text-base font-semibold" style={{ color: '#f1f5f9' }}>Are you sure?</h2>
-            <div className="flex flex-col gap-1.5">
-              <p className="text-sm" style={{ color: '#94a3b8' }}>The following will be permanently deleted:</p>
-              <ul className="flex flex-col gap-0.5 mt-1">
+            <div className="flex flex-col gap-2">
+              <p className="text-sm" style={{ color: '#94a3b8' }}>
+                This will reset the selected data. Your categories, names, and targets will not be
+                affected — only dollar amounts and history will be cleared. This cannot be undone.
+              </p>
+              <ul className="flex flex-col gap-0.5">
                 {selectedTargets.map(t => (
                   <li key={t.id} className="text-sm font-medium" style={{ color: '#ef4444' }}>
                     · {t.label}
