@@ -51,7 +51,7 @@ async function resetBuckets(uid) {
   for (let i = 0; i < snap.docs.length; i += LIMIT) {
     const batch = writeBatch(db);
     snap.docs.slice(i, i + LIMIT).forEach(d =>
-      batch.update(d.ref, { currentAmount: 0, monthlyAssigned: 0, monthlyAssignedMonth: '' })
+      batch.update(d.ref, { currentAmount: 0, txSpend: 0, monthlyAssigned: 0, monthlyAssignedMonth: '' })
     );
     await batch.commit();
   }

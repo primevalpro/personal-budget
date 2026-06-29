@@ -62,7 +62,7 @@ export default function Dashboard({ user }) {
     .filter(o => o.assignedMonth === cm)
     .reduce((sum, o) => sum + (o.assignedAmount || 0), 0);
   const assignedGoals = goals.reduce((sum, g) => sum + (g.assignedAmount || 0), 0);
-  const assignedBuckets = buckets.reduce((sum, b) => sum + (b.currentAmount || 0), 0);
+  const assignedBuckets = buckets.reduce((sum, b) => sum + (b.currentAmount || 0) + (b.txSpend || 0), 0);
   const totalAssigned = assignedObligations + assignedGoals + assignedBuckets;
   const readyToAssign = totalImportedIncome - totalAssigned;
 
